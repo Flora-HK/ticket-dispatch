@@ -31,3 +31,6 @@ def init_db(session: Session) -> None:
             is_superuser=True,
         )
         user = crud.create_user(session=session, user_create=user_in)
+    # The first administrator is identified by an ADMIN role binding, not only by
+    # the legacy is_superuser flag. This call is idempotent (unique constraint).
+    crud.ensure_user_role(session=session, user_id=user.id, role_code="ADMIN")

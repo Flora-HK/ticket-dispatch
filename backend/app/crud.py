@@ -4,7 +4,16 @@ from typing import Any
 from sqlmodel import Session, select
 
 from app.core.security import get_password_hash, verify_password
-from app.models import Item, ItemCreate, User, UserCreate, UserUpdate
+from app.models import (
+    Item,
+    ItemCreate,
+    Team,
+    TeamMembership,
+    User,
+    UserCreate,
+    UserRole,
+    UserUpdate,
+)
 
 
 def create_user(*, session: Session, user_create: UserCreate) -> User:
@@ -66,3 +75,44 @@ def create_item(*, session: Session, item_in: ItemCreate, owner_id: uuid.UUID) -
     session.commit()
     session.refresh(db_item)
     return db_item
+
+
+def get_user_role(
+    *, session: Session, user_id: uuid.UUID, role_code: str
+) -> UserRole | None:
+    statement = select(UserRole).where(
+        UserRole.user_id == user_id, UserRole.role_code == role_code
+    )
+    return session.exec(statement).first()
+
+
+def ensure_user_role(
+    *, session: Session, user_id: uuid.UUID, role_code: str
+) -> UserRole:
+    """Create a role binding only when missing, so seeding stays idempotent."""
+    existing = get_user_role(session=session, user_id=user_id, role_code=role_code)
+    if existing:
+        return existing
+    db_role = UserRole(user_id=user_id, role_code=role_code)
+    session.add(db_role)
+    session.commit()
+    session.refresh(db_role)
+    return db_role
+
+
+def create_team(*, session: Session, name: str) -> Team:
+    db_team = Team(name=name)
+    session.add(db_team)
+    session.commit()
+    session.refresh(db_team)
+    return db_team
+
+
+def create_team_membership(
+    *, session: Session, team_id: uuid.UUID, user_id: uuid.UUID
+) -> TeamMembership:
+    db_membership = TeamMembership(team_id=team_id, user_id=user_id)
+    session.add(db_membership)
+    session.commit()
+    session.refresh(db_membership)
+    return db_membership
