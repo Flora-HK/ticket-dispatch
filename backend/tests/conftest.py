@@ -15,6 +15,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
+from dotenv import dotenv_values
 from fastapi.testclient import TestClient
 from sqlmodel import Session, create_engine
 
@@ -26,11 +27,13 @@ def _base_database_url() -> str:
     url = os.environ.get("DATABASE_URL")
     if url:
         return url
-    env_file = PROJECT_DIR / ".env"
-    for line in env_file.read_text(encoding="utf-8").splitlines():
-        if line.startswith("DATABASE_URL="):
-            return line.split("=", 1)[1].strip().strip('"').strip("'")
-    raise RuntimeError("DATABASE_URL not found in environment or .env")
+    # dotenv expands ${POSTGRES_PASSWORD}; reading the line verbatim would use
+    # the literal placeholder as the password.
+    values = dotenv_values(PROJECT_DIR / ".env")
+    url = values.get("DATABASE_URL")
+    if not url:
+        raise RuntimeError("DATABASE_URL not found in environment or .env")
+    return str(url)
 
 
 def _with_database(url: str, database: str) -> str:
