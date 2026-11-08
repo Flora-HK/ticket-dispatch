@@ -9,6 +9,11 @@ from sqlmodel import Field, Relationship, SQLModel
 
 # Fixed role codes. A user can hold several roles; permissions are the union.
 ROLE_CODES = ("SUBMITTER", "DISPATCHER", "HANDLER", "ADMIN")
+
+# Ticket lifecycle:
+# PENDING_ASSIGNMENT -> ASSIGNED -> IN_PROGRESS -> PENDING_CONFIRMATION -> CLOSED
+# A rejection returns ASSIGNED to PENDING_ASSIGNMENT. Re-dispatch keeps ASSIGNED;
+# reopening a CLOSED ticket returns it to PENDING_ASSIGNMENT.
 TICKET_STATUSES = (
     "PENDING_ASSIGNMENT",
     "ASSIGNED",
@@ -16,6 +21,10 @@ TICKET_STATUSES = (
     "PENDING_CONFIRMATION",
     "CLOSED",
 )
+
+# Assignment lifecycle. Only ASSIGNED and ACCEPTED are active and share the
+# partial unique index per ticket. REJECTED and SUPERSEDED require a reason;
+# COMPLETED requires completion_note and finished_at.
 ASSIGNMENT_STATUSES = (
     "ASSIGNED",
     "ACCEPTED",
@@ -23,7 +32,13 @@ ASSIGNMENT_STATUSES = (
     "COMPLETED",
     "SUPERSEDED",
 )
+
+# MANUAL means a dispatcher selects the handler. AUTO means an eligible handler
+# is selected by the system using the recorded strategy.
 DISPATCH_MODES = ("MANUAL", "AUTO")
+
+# Manual dispatch records MANUAL. The current automatic strategy selects the
+# eligible handler with the fewest active (ASSIGNED/ACCEPTED) tickets.
 ASSIGNMENT_STRATEGY_CODES = ("MANUAL", "LEAST_OPEN_TICKET")
 
 
