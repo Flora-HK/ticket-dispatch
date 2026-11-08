@@ -74,7 +74,7 @@ class UsersPublic(SQLModel):
 # Fixed role binding: one row per (user, role). UUID primary key keeps the
 # audit log able to address a single binding without relying on a composite key.
 class UserRole(SQLModel, table=True):
-    __tablename__ = "user_role"
+    __tablename__ = "user_role" # type: ignore
 
     __table_args__ = (
         UniqueConstraint(
@@ -117,7 +117,7 @@ class Team(SQLModel, table=True):
 # A Handler's membership in a Team: eligibility, availability and the
 # denormalised last_assigned_at used by the deterministic dispatch ranking.
 class TeamMembership(SQLModel, table=True):
-    __tablename__ = "team_membership"
+    __tablename__ = "team_membership" #type: ignore
 
     __table_args__ = (
         UniqueConstraint("team_id", "user_id", name="uq_team_membership_team_user"),
