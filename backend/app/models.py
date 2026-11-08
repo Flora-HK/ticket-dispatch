@@ -135,7 +135,7 @@ class Team(SQLModel, table=True):
 # A Handler's membership in a Team: eligibility, availability and the
 # denormalised last_assigned_at used by the deterministic dispatch ranking.
 class TeamMembership(SQLModel, table=True):
-    __tablename__ = "team_membership" 
+    __tablename__ = "team_membership"
 
     __table_args__ = (
         UniqueConstraint("team_id", "user_id", name="uq_team_membership_team_user"),
