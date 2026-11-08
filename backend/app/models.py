@@ -10,10 +10,10 @@ from sqlmodel import Field, Relationship, SQLModel
 # Fixed role codes. A user can hold several roles; permissions are the union.
 ROLE_CODES = ("SUBMITTER", "DISPATCHER", "HANDLER", "ADMIN")
 
-# Ticket lifecycle:
+# 工单生命周期：
 # PENDING_ASSIGNMENT -> ASSIGNED -> IN_PROGRESS -> PENDING_CONFIRMATION -> CLOSED
-# A rejection returns ASSIGNED to PENDING_ASSIGNMENT. Re-dispatch keeps ASSIGNED;
-# reopening a CLOSED ticket returns it to PENDING_ASSIGNMENT.
+# 拒绝后由 ASSIGNED 回到 PENDING_ASSIGNMENT；重新派发保持 ASSIGNED；
+# 已关闭工单重新打开后回到 PENDING_ASSIGNMENT。
 TICKET_STATUSES = (
     "PENDING_ASSIGNMENT",
     "ASSIGNED",
@@ -22,9 +22,9 @@ TICKET_STATUSES = (
     "CLOSED",
 )
 
-# Assignment lifecycle. Only ASSIGNED and ACCEPTED are active and share the
-# partial unique index per ticket. REJECTED and SUPERSEDED require a reason;
-# COMPLETED requires completion_note and finished_at.
+# 派发记录生命周期。只有 ASSIGNED 和 ACCEPTED 属于活动状态，并通过部分唯一索引
+# 保证同一工单最多一条活动记录。REJECTED 和 SUPERSEDED 必须填写原因；
+# COMPLETED 必须填写完成说明和完成时间。
 ASSIGNMENT_STATUSES = (
     "ASSIGNED",
     "ACCEPTED",
@@ -33,12 +33,10 @@ ASSIGNMENT_STATUSES = (
     "SUPERSEDED",
 )
 
-# MANUAL means a dispatcher selects the handler. AUTO means an eligible handler
-# is selected by the system using the recorded strategy.
+# MANUAL 表示由派单员指定处理人；AUTO 表示系统根据记录的策略选择合格处理人。
 DISPATCH_MODES = ("MANUAL", "AUTO")
 
-# Manual dispatch records MANUAL. The current automatic strategy selects the
-# eligible handler with the fewest active (ASSIGNED/ACCEPTED) tickets.
+# 人工派发记录为 MANUAL；当前自动策略从合格候选中选择活动工单最少的处理人。
 ASSIGNMENT_STRATEGY_CODES = ("MANUAL", "LEAST_OPEN_TICKET")
 
 
