@@ -356,7 +356,7 @@ class Comment(SQLModel, table=True):
 
 
 class AuditLog(SQLModel, table=True):
-    """记录关键写操作、状态变化和可预期失败，供审计与业务时间线使用。"""
+    """记录关键写操作、状态变化和可预期失败；数据库 Trigger 保证记录不可变。"""
 
     __tablename__ = "audit_log"  # pyright: ignore[reportAssignmentType]
 
