@@ -139,7 +139,7 @@ class UsersPublic(SQLModel):
 # Fixed role binding: one row per (user, role). UUID primary key keeps the
 # audit log able to address a single binding without relying on a composite key.
 class UserRole(SQLModel, table=True):
-    __tablename__ = "user_role"
+    __tablename__ = "user_role"  # pyright: ignore[reportAssignmentType]
 
     __table_args__ = (
         UniqueConstraint(
@@ -182,7 +182,7 @@ class Team(SQLModel, table=True):
 # A Handler's membership in a Team: eligibility, availability and the
 # denormalised last_assigned_at used by the deterministic dispatch ranking.
 class TeamMembership(SQLModel, table=True):
-    __tablename__ = "team_membership"
+    __tablename__ = "team_membership"  # pyright: ignore[reportAssignmentType]
 
     __table_args__ = (
         UniqueConstraint("team_id", "user_id", name="uq_team_membership_team_user"),
@@ -358,7 +358,7 @@ class Comment(SQLModel, table=True):
 class AuditLog(SQLModel, table=True):
     """记录关键写操作、状态变化和可预期失败，供审计与业务时间线使用。"""
 
-    __tablename__ = "audit_log"
+    __tablename__ = "audit_log"  # pyright: ignore[reportAssignmentType]
 
     __table_args__ = (
         CheckConstraint(
@@ -511,7 +511,7 @@ class Notification(SQLModel, table=True):
 class IdempotencyRecord(SQLModel, table=True):
     """保存短期幂等结果，使同键同载荷的重试返回首次响应。"""
 
-    __tablename__ = "idempotency_record"
+    __tablename__ = "idempotency_record"  # pyright: ignore[reportAssignmentType]
 
     __table_args__ = (
         UniqueConstraint(
