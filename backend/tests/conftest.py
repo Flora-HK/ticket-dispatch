@@ -118,6 +118,8 @@ def clean_db(db: Session) -> Generator[Session]:
     """
     db.rollback()
     truncate_all_tables()
+    # 清表后丢弃 Session 身份映射，避免 BIGINT IDENTITY 从 1 重启时复用旧对象。
+    db.expunge_all()
     db.expire_all()
     init_db(db)
     yield db

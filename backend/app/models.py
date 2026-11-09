@@ -1,9 +1,9 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pydantic import EmailStr
-from sqlalchemy import CheckConstraint, Index, Text, UniqueConstraint, text
+from sqlalchemy import BigInteger, CheckConstraint, Index, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -38,6 +38,40 @@ DISPATCH_MODES = ("MANUAL", "AUTO")
 
 # 人工派发记录为 MANUAL；当前自动策略从合格候选中选择活动工单最少的处理人。
 ASSIGNMENT_STRATEGY_CODES = ("MANUAL", "LEAST_OPEN_TICKET")
+
+# 审计操作、实体和结果只允许使用契约中约定的稳定代码，避免后续查询
+# 因大小写或临时文案不同而无法聚合。
+AUDIT_ACTOR_TYPES = ("USER", "SYSTEM")
+AUDIT_OUTCOMES = ("SUCCESS", "FAILED")
+AUDIT_ACTIONS = (
+    "TICKET_CREATED",
+    "TICKET_UPDATED",
+    "COMMENT_CREATED",
+    "ASSIGNMENT_CREATED",
+    "ASSIGNMENT_ACCEPTED",
+    "ASSIGNMENT_REJECTED",
+    "ASSIGNMENT_COMPLETED",
+    "ASSIGNMENT_SUPERSEDED",
+    "TICKET_COMPLETED",
+    "TICKET_CLOSED",
+    "TICKET_REOPENED",
+    "USER_ROLES_CHANGED",
+    "USER_STATUS_CHANGED",
+    "TEAM_MEMBER_CHANGED",
+    "AUTO_ASSIGN_FAILED",
+)
+AUDIT_ENTITY_TYPES = (
+    "TICKET",
+    "ASSIGNMENT",
+    "USER",
+    "USER_ROLE",
+    "TEAM",
+    "TEAM_MEMBERSHIP",
+)
+NOTIFICATION_TYPES = ("ASSIGNMENT_RECEIVED",)
+
+# 幂等记录只覆盖短期网络重试和重复点击，不承担永久业务去重。
+IDEMPOTENCY_RETENTION = timedelta(days=7)
 
 
 def get_datetime_utc() -> datetime:
@@ -319,6 +353,199 @@ class Comment(SQLModel, table=True):
     )
     body: str = Field(sa_type=Text, nullable=False)
     created_at: datetime = Field(default_factory=get_datetime_utc, nullable=False)
+
+
+class AuditLog(SQLModel, table=True):
+    """记录关键写操作、状态变化和可预期失败，供审计与业务时间线使用。"""
+
+    __tablename__ = "audit_log"
+
+    __table_args__ = (
+        CheckConstraint(
+            "actor_type IN ('USER', 'SYSTEM')",
+            name="ck_audit_log_actor_type",
+        ),
+        CheckConstraint(
+            "(actor_type = 'SYSTEM' AND actor_user_id IS NULL) OR "
+            "(actor_type = 'USER' AND actor_user_id IS NOT NULL)",
+            name="ck_audit_log_actor_binding",
+        ),
+        CheckConstraint(
+            "action IN ("
+            "'TICKET_CREATED', 'TICKET_UPDATED', 'COMMENT_CREATED', "
+            "'ASSIGNMENT_CREATED', 'ASSIGNMENT_ACCEPTED', "
+            "'ASSIGNMENT_REJECTED', 'ASSIGNMENT_COMPLETED', "
+            "'ASSIGNMENT_SUPERSEDED', 'TICKET_COMPLETED', 'TICKET_CLOSED', "
+            "'TICKET_REOPENED', 'USER_ROLES_CHANGED', "
+            "'USER_STATUS_CHANGED', 'TEAM_MEMBER_CHANGED', "
+            "'AUTO_ASSIGN_FAILED'"
+            ")",
+            name="ck_audit_log_action",
+        ),
+        CheckConstraint(
+            "entity_type IN ("
+            "'TICKET', 'ASSIGNMENT', 'USER', 'USER_ROLE', "
+            "'TEAM', 'TEAM_MEMBERSHIP'"
+            ")",
+            name="ck_audit_log_entity_type",
+        ),
+        CheckConstraint(
+            "outcome IN ('SUCCESS', 'FAILED')",
+            name="ck_audit_log_outcome",
+        ),
+        Index(
+            "ix_audit_log_entity_created_at",
+            "entity_type",
+            "entity_id",
+            text("created_at DESC"),
+        ),
+        Index(
+            "ix_audit_log_ticket_created_at",
+            "ticket_id",
+            text("created_at DESC"),
+        ),
+        Index(
+            "ix_audit_log_actor_created_at",
+            "actor_user_id",
+            text("created_at DESC"),
+        ),
+        Index("ix_audit_log_request_id", "request_id"),
+    )
+
+    # BIGINT IDENTITY 保证审计记录按写入顺序递增，不受 UUID 随机排序影响。
+    id: int | None = Field(
+        default=None,
+        primary_key=True,
+        sa_type=BigInteger,
+    )
+    actor_user_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="user.id",
+        nullable=True,
+        ondelete="RESTRICT",
+    )
+    actor_type: str = Field(max_length=20, nullable=False)
+    action: str = Field(max_length=50, nullable=False)
+    entity_type: str = Field(max_length=30, nullable=False)
+    entity_id: uuid.UUID | None = Field(default=None, nullable=True)
+    # 复合实体可能没有单一主键，使用稳定业务键保留可查询定位信息。
+    entity_key: dict[str, str] | None = Field(
+        default=None,
+        nullable=True,
+        sa_type=JSONB,
+    )
+    ticket_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="ticket.id",
+        nullable=True,
+        ondelete="RESTRICT",
+    )
+    before_state: dict[str, Any] | None = Field(
+        default=None,
+        nullable=True,
+        sa_type=JSONB,
+    )
+    after_state: dict[str, Any] | None = Field(
+        default=None,
+        nullable=True,
+        sa_type=JSONB,
+    )
+    outcome: str = Field(max_length=20, nullable=False)
+    error_code: str | None = Field(default=None, max_length=100, nullable=True)
+    request_id: uuid.UUID = Field(nullable=False)
+    idempotency_key: str | None = Field(default=None, max_length=255, nullable=True)
+    # detail 使用受控字段集合，业务服务不得把完整请求体或凭证写入这里。
+    detail: dict[str, Any] = Field(
+        default_factory=dict,
+        nullable=False,
+        sa_type=JSONB,
+        sa_column_kwargs={"server_default": text("'{}'::jsonb")},
+    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, nullable=False)
+
+
+class Notification(SQLModel, table=True):
+    """保存站内派发通知；MVP 不提供已读写入或外部投递。"""
+
+    __table_args__ = (
+        UniqueConstraint(
+            "recipient_id",
+            "assignment_id",
+            "notification_type",
+            name="uq_notification_recipient_assignment_type",
+        ),
+        CheckConstraint(
+            "notification_type IN ('ASSIGNMENT_RECEIVED')",
+            name="ck_notification_type",
+        ),
+        Index(
+            "ix_notification_recipient_created_at",
+            "recipient_id",
+            text("created_at DESC"),
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    recipient_id: uuid.UUID = Field(
+        foreign_key="user.id",
+        nullable=False,
+        ondelete="RESTRICT",
+    )
+    ticket_id: uuid.UUID = Field(
+        foreign_key="ticket.id",
+        nullable=False,
+        ondelete="RESTRICT",
+    )
+    assignment_id: uuid.UUID = Field(
+        foreign_key="assignment.id",
+        nullable=False,
+        ondelete="RESTRICT",
+    )
+    notification_type: str = Field(max_length=50, nullable=False)
+    payload: dict[str, Any] = Field(nullable=False, sa_type=JSONB)
+    created_at: datetime = Field(default_factory=get_datetime_utc, nullable=False)
+    # 该字段为后续通知中心预留；MVP 保持为空且不暴露公开响应。
+    read_at: datetime | None = Field(default=None, nullable=True)
+
+
+class IdempotencyRecord(SQLModel, table=True):
+    """保存短期幂等结果，使同键同载荷的重试返回首次响应。"""
+
+    __tablename__ = "idempotency_record"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "actor_user_id",
+            "command_scope",
+            "idempotency_key",
+            name="uq_idempotency_actor_scope_key",
+        ),
+        CheckConstraint(
+            "response_status BETWEEN 100 AND 599",
+            name="ck_idempotency_response_status",
+        ),
+        CheckConstraint(
+            "expires_at = created_at + INTERVAL '7 days'",
+            name="ck_idempotency_expiry",
+        ),
+        Index("ix_idempotency_record_expires_at", "expires_at"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    actor_user_id: uuid.UUID = Field(
+        foreign_key="user.id",
+        nullable=False,
+        ondelete="RESTRICT",
+    )
+    command_scope: str = Field(max_length=100, nullable=False)
+    idempotency_key: str = Field(max_length=255, nullable=False)
+    request_hash: str = Field(max_length=128, nullable=False)
+    response_status: int = Field(nullable=False)
+    response_body: dict[str, Any] = Field(nullable=False, sa_type=JSONB)
+    resource_type: str | None = Field(default=None, max_length=50, nullable=True)
+    resource_id: uuid.UUID | None = Field(default=None, nullable=True)
+    created_at: datetime = Field(default_factory=get_datetime_utc, nullable=False)
+    expires_at: datetime = Field(nullable=False)
 
 
 # Shared properties
