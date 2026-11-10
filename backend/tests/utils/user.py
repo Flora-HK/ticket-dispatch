@@ -46,4 +46,7 @@ def authentication_token_from_email(
             raise Exception("User id not set")
         user = crud.update_user(session=db, db_user=user, user_in=user_in_update)
 
+    if not crud.get_user_roles(session=db, user_id=user.id):
+        crud.ensure_user_role(session=db, user_id=user.id, role_code="SUBMITTER")
+
     return user_authentication_headers(client=client, email=email, password=password)

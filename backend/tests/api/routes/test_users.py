@@ -19,7 +19,8 @@ def test_get_users_superuser_me(
     current_user = r.json()
     assert current_user
     assert current_user["is_active"] is True
-    assert current_user["is_superuser"]
+    assert current_user["roles"] == ["ADMIN"]
+    assert "is_superuser" not in current_user
     assert current_user["email"] == settings.FIRST_SUPERUSER
 
 
@@ -30,7 +31,8 @@ def test_get_users_normal_user_me(
     current_user = r.json()
     assert current_user
     assert current_user["is_active"] is True
-    assert current_user["is_superuser"] is False
+    assert current_user["roles"] == ["SUBMITTER"]
+    assert "is_superuser" not in current_user
     assert current_user["email"] == settings.EMAIL_TEST_USER
 
 
@@ -325,18 +327,12 @@ def test_register_user(client: TestClient, db: Session) -> None:
         f"{settings.API_V1_STR}/users/signup",
         json=data,
     )
-    assert r.status_code == 200
-    created_user = r.json()
-    assert created_user["email"] == username
-    assert created_user["full_name"] == full_name
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "REGISTRATION_DISABLED"
 
     user_query = select(User).where(User.email == username)
     user_db = db.exec(user_query).first()
-    assert user_db
-    assert user_db.email == username
-    assert user_db.full_name == full_name
-    verified, _ = verify_password(password, user_db.hashed_password)
-    assert verified
+    assert user_db is None
 
 
 def test_register_user_already_exists_error(client: TestClient) -> None:
@@ -351,8 +347,8 @@ def test_register_user_already_exists_error(client: TestClient) -> None:
         f"{settings.API_V1_STR}/users/signup",
         json=data,
     )
-    assert r.status_code == 400
-    assert r.json()["detail"] == "The user with this email already exists in the system"
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "REGISTRATION_DISABLED"
 
 
 def test_update_user(
@@ -518,4 +514,4 @@ def test_delete_user_without_privileges(
         headers=normal_user_token_headers,
     )
     assert r.status_code == 403
-    assert r.json()["detail"] == "The user doesn't have enough privileges"
+    assert r.json()["error"]["code"] == "ROLE_REQUIRED"

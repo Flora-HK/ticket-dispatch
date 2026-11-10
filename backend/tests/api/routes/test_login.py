@@ -31,7 +31,8 @@ def test_get_access_token_incorrect_password(client: TestClient) -> None:
         "password": "incorrect",
     }
     r = client.post(f"{settings.API_V1_STR}/login/access-token", data=login_data)
-    assert r.status_code == 400
+    assert r.status_code == 401
+    assert r.json()["error"]["code"] == "INVALID_CREDENTIALS"
 
 
 def test_use_access_token(
@@ -121,9 +122,8 @@ def test_reset_password_invalid_token(
     )
     response = r.json()
 
-    assert "detail" in response
     assert r.status_code == 400
-    assert response["detail"] == "Invalid token"
+    assert response["error"]["code"] == "INVALID_TOKEN"
 
 
 def test_login_with_bcrypt_password_upgrades_to_argon2(

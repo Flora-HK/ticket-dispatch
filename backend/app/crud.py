@@ -1,16 +1,18 @@
 import uuid
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.core.security import get_password_hash, verify_password
 from app.models import (
     Item,
     ItemCreate,
+    ROLE_CODES,
     Team,
     TeamMembership,
     User,
     UserCreate,
+    UserPublic,
     UserRole,
     UserUpdate,
 )
@@ -86,6 +88,21 @@ def get_user_role(
     return session.exec(statement).first()
 
 
+def get_user_roles(*, session: Session, user_id: uuid.UUID) -> list[str]:
+    """每次从数据库读取角色，确保角色变更对下一次请求立即生效。"""
+
+    statement = select(UserRole.role_code).where(UserRole.user_id == user_id)
+    stored_roles = set(session.exec(statement).all())
+    return [role for role in ROLE_CODES if role in stored_roles]
+
+
+def to_user_public(*, session: Session, user: User) -> UserPublic:
+    """把数据库用户和实时角色组合成 API 公开模型。"""
+
+    roles = get_user_roles(session=session, user_id=user.id)
+    return UserPublic.model_validate(user, update={"roles": roles})
+
+
 def ensure_user_role(
     *, session: Session, user_id: uuid.UUID, role_code: str
 ) -> UserRole:
@@ -98,6 +115,15 @@ def ensure_user_role(
     session.commit()
     session.refresh(db_role)
     return db_role
+
+
+def get_team_by_name(*, session: Session, name: str) -> Team | None:
+    """按名称读取 Team，供幂等种子和管理接口复用。"""
+
+    statement = select(Team).where(Team.name == name).order_by(
+        col(Team.is_active).desc(), col(Team.created_at).desc()
+    )
+    return session.exec(statement).first()
 
 
 def create_team(*, session: Session, name: str) -> Team:

@@ -15,12 +15,5 @@ def test_create_user(client: TestClient, db: Session) -> None:
         },
     )
 
-    assert r.status_code == 200
-
-    data = r.json()
-
-    user = db.exec(select(User).where(User.id == data["id"])).first()
-
-    assert user
-    assert user.email == "pollo@listo.com"
-    assert user.full_name == "Pollo Listo"
+    assert r.status_code == 404
+    assert db.exec(select(User).where(User.email == "pollo@listo.com")).first() is None

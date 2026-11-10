@@ -60,6 +60,7 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 from app.core.config import settings  # noqa: E402
 from app.core.db import engine, init_db  # noqa: E402
+from app.core.seed import seed_vs1_demo_data  # noqa: E402
 from app.main import app  # noqa: E402
 from tests.utils.user import authentication_token_from_email  # noqa: E402
 from tests.utils.utils import get_superuser_token_headers  # noqa: E402
@@ -124,6 +125,27 @@ def clean_db(db: Session) -> Generator[Session]:
     init_db(db)
     yield db
     db.rollback()
+
+
+@pytest.fixture(scope="module")
+def vs1_seeded_db(db: Session) -> Generator[None]:
+    """在提交后的独立 Session 中准备 VS1 数据，API 请求仍各自使用新 Session。"""
+
+    db.rollback()
+    db.expunge_all()
+    with Session(engine) as setup_session:
+        setup_session.rollback()
+        truncate_all_tables()
+        init_db(setup_session)
+        seed_vs1_demo_data(setup_session)
+    db.expunge_all()
+    yield
+    db.rollback()
+    db.expunge_all()
+    truncate_all_tables()
+    with Session(engine) as reset_session:
+        init_db(reset_session)
+    db.expunge_all()
 
 
 @pytest.fixture(scope="module")

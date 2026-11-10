@@ -1,12 +1,14 @@
+import uuid
 from pathlib import Path
 
 import sentry_sdk
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
+from app.core.errors import APIError, api_error_handler
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 
@@ -23,6 +25,28 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     generate_unique_id_function=custom_generate_unique_id,
 )
+
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    """为响应、错误和服务日志提供稳定请求标识。"""
+
+    incoming_request_id = request.headers.get("X-Request-ID")
+    try:
+        request_id = (
+            str(uuid.UUID(incoming_request_id))
+            if incoming_request_id
+            else str(uuid.uuid4())
+        )
+    except ValueError:
+        request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+app.add_exception_handler(APIError, api_error_handler)
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,6 +1,6 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import EmailStr
 from sqlalchemy import BigInteger, CheckConstraint, Index, Text, UniqueConstraint, text
@@ -9,6 +9,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 # Fixed role codes. A user can hold several roles; permissions are the union.
 ROLE_CODES = ("SUBMITTER", "DISPATCHER", "HANDLER", "ADMIN")
+type RoleCode = Literal["SUBMITTER", "DISPATCHER", "HANDLER", "ADMIN"]
 
 # 工单生命周期：
 # PENDING_ASSIGNMENT -> ASSIGNED -> IN_PROGRESS -> PENDING_CONFIRMATION -> CLOSED
@@ -125,15 +126,55 @@ class User(UserBase, table=True):
     items: list[Item] = Relationship(back_populates="owner", cascade_delete=True)
 
 
-# Properties to return via API, id is always required
-class UserPublic(UserBase):
+# 用户摘要不包含 is_superuser，最终权限事实只来自 UserRole。
+class UserSummary(SQLModel):
     id: uuid.UUID
+    email: EmailStr
+    full_name: str | None = None
+    is_active: bool
+
+
+class UserPublic(UserSummary):
+    """用户公开信息，角色在每次请求时从数据库加载。"""
+
+    roles: list[RoleCode]
+    version: int
     created_at: datetime | None = None
 
 
 class UsersPublic(SQLModel):
     data: list[UserPublic]
     count: int
+
+
+class TeamPublic(SQLModel):
+    """Team 的稳定公开表示，version 用于后续成员和启停的乐观锁。"""
+
+    id: uuid.UUID
+    name: str
+    is_active: bool
+    version: int
+    created_at: datetime
+
+
+class TeamPage(SQLModel):
+    """Team 查询使用 opaque cursor，避免偏移分页在数据变化时跳过记录。"""
+
+    items: list[TeamPublic]
+    next_cursor: str | None = None
+
+
+class ErrorDetail(SQLModel):
+    """统一错误中的稳定业务码、可展示消息和请求追踪 ID。"""
+
+    code: str
+    message: str
+    request_id: uuid.UUID
+    details: dict[str, Any] | None = None
+
+
+class ErrorResponse(SQLModel):
+    error: ErrorDetail
 
 
 # Fixed role binding: one row per (user, role). UUID primary key keeps the
