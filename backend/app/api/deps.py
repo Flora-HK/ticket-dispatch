@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, Request, status
+from fastapi import Depends, Header, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
@@ -29,6 +29,52 @@ def get_db() -> Generator[Session]:
 
 SessionDep = Annotated[Session, Depends(get_db)]
 TokenDep = Annotated[str | None, Depends(reusable_oauth2)]
+
+
+def get_idempotency_key(
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+    ),
+) -> str:
+    """写接口统一提取幂等键，并把缺失和格式错误映射为稳定业务码。"""
+
+    if idempotency_key is None:
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="IDEMPOTENCY_KEY_MISSING",
+            message="The Idempotency-Key header is required.",
+            details={
+                "fields": [
+                    {
+                        "loc": ["header", "Idempotency-Key"],
+                        "message": "Field required",
+                        "type": "missing",
+                    }
+                ]
+            },
+        )
+    if not 16 <= len(idempotency_key) <= 128 or any(
+        32 > ord(char) or ord(char) > 126 for char in idempotency_key
+    ):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="VALIDATION_ERROR",
+            message="The Idempotency-Key header is invalid.",
+            details={
+                "fields": [
+                    {
+                        "loc": ["header", "Idempotency-Key"],
+                        "message": "Must contain 16 to 128 printable ASCII characters.",
+                        "type": "value_error",
+                    }
+                ]
+            },
+        )
+    return idempotency_key
+
+
+IdempotencyKey = Annotated[str, Depends(get_idempotency_key)]
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,8 +1,8 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
-from pydantic import EmailStr
+from pydantic import EmailStr, field_validator, model_validator
 from sqlalchemy import BigInteger, CheckConstraint, Index, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
@@ -22,6 +22,23 @@ TICKET_STATUSES = (
     "PENDING_CONFIRMATION",
     "CLOSED",
 )
+type TicketStatus = Literal[
+    "PENDING_ASSIGNMENT",
+    "ASSIGNED",
+    "IN_PROGRESS",
+    "PENDING_CONFIRMATION",
+    "CLOSED",
+]
+type TicketAction = Literal[
+    "EDIT",
+    "DISPATCH",
+    "COMMENT",
+    "ACCEPT",
+    "REJECT",
+    "COMPLETE",
+    "CLOSE",
+    "REOPEN",
+]
 
 # 派发记录生命周期。只有 ASSIGNED 和 ACCEPTED 属于活动状态，并通过部分唯一索引
 # 保证同一工单最多一条活动记录。REJECTED 和 SUPERSEDED 必须填写原因；
@@ -112,6 +129,61 @@ class UserUpdateMe(SQLModel):
     email: EmailStr | None = Field(default=None, max_length=255)
 
 
+class StrictRequestModel(SQLModel):
+    """业务写请求不接受契约外字段，避免客户端误把服务端事实当作可写输入。"""
+
+    model_config: ClassVar[Any] = {"extra": "forbid"}
+
+
+class TicketCreateRequest(StrictRequestModel):
+    team_id: uuid.UUID
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("title", "description")
+    @classmethod
+    def strip_business_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+
+class TicketUpdateRequest(StrictRequestModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, min_length=1, max_length=10000)
+    expected_version: int = Field(ge=1)
+
+    @field_validator("title", "description")
+    @classmethod
+    def strip_optional_business_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+    @model_validator(mode="after")
+    def require_body_change(self) -> TicketUpdateRequest:
+        if self.title is None and self.description is None:
+            raise ValueError("at least one of title or description is required")
+        return self
+
+
+class CommentCreateRequest(StrictRequestModel):
+    body: str = Field(min_length=1, max_length=5000)
+    expected_ticket_version: int = Field(ge=1)
+
+    @field_validator("body")
+    @classmethod
+    def strip_comment_body(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+
 class UpdatePassword(SQLModel):
     current_password: str = Field(min_length=8, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)
@@ -140,6 +212,67 @@ class UserPublic(UserSummary):
     roles: list[RoleCode]
     version: int
     created_at: datetime | None = None
+
+
+class TeamSummary(SQLModel):
+    id: uuid.UUID
+    name: str
+
+
+class AssignmentPublic(SQLModel):
+    id: uuid.UUID
+    ticket_id: uuid.UUID
+    handler_id: uuid.UUID
+    handler: UserSummary
+    assigned_by_id: uuid.UUID
+    assigned_by: UserSummary | None
+    status: str
+    dispatch_mode: str
+    strategy_code: str
+    strategy_version: str
+    reason: str | None
+    completion_note: str | None
+    assigned_at: datetime
+    responded_at: datetime | None
+    finished_at: datetime | None
+    version: int
+
+
+class TicketSummaryPublic(SQLModel):
+    id: uuid.UUID
+    team_id: uuid.UUID
+    team: TeamSummary
+    submitter_id: uuid.UUID
+    submitter: UserSummary
+    title: str
+    status: TicketStatus
+    version: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class TicketDetailPublic(TicketSummaryPublic):
+    description: str
+    active_assignment: AssignmentPublic | None
+    allowed_actions: list[TicketAction]
+
+
+class TicketPage(SQLModel):
+    items: list[TicketSummaryPublic]
+    next_cursor: str | None = None
+
+
+class CommentPublic(SQLModel):
+    id: uuid.UUID
+    ticket_id: uuid.UUID
+    author: UserSummary
+    body: str
+    created_at: datetime
+
+
+class CommentPage(SQLModel):
+    items: list[CommentPublic]
+    next_cursor: str | None = None
 
 
 class UsersPublic(SQLModel):

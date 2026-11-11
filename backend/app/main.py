@@ -3,12 +3,17 @@ from pathlib import Path
 
 import sentry_sdk
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
-from app.core.errors import APIError, api_error_handler
+from app.core.errors import (
+    APIError,
+    api_error_handler,
+    request_validation_error_handler,
+)
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 
@@ -47,6 +52,7 @@ async def add_request_id(request: Request, call_next):
 
 
 app.add_exception_handler(APIError, api_error_handler)
+app.add_exception_handler(RequestValidationError, request_validation_error_handler)
 
 app.add_middleware(
     CORSMiddleware,

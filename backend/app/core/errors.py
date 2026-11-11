@@ -2,6 +2,7 @@ import uuid
 from typing import Any
 
 from fastapi import Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 
@@ -42,6 +43,38 @@ async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:
             }
         },
         headers=exc.headers,
+    )
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+async def request_validation_error_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """把 Pydantic 校验错误转换为不包含原始输入的稳定 ErrorResponse。"""
+
+    if not isinstance(exc, RequestValidationError):
+        raise exc
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
+    fields = [
+        {
+            "loc": list(error["loc"]),
+            "message": error["msg"],
+            "type": error["type"],
+        }
+        for error in exc.errors()
+    ]
+    response = JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "The request validation failed.",
+                "request_id": request_id,
+                "details": {"fields": fields},
+            }
+        },
     )
     response.headers["X-Request-ID"] = request_id
     return response
