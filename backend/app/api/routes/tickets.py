@@ -12,12 +12,15 @@ from app.api.deps import (
     require_roles,
 )
 from app.models import (
+    CloseTicketRequest,
     TicketCreateRequest,
     TicketDetailPublic,
+    TicketMutationResponse,
     TicketPage,
     TicketUpdateRequest,
 )
 from app.services import tickets as ticket_service
+from app.services.assignments import close_ticket as close_ticket_service
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -106,4 +109,26 @@ def update_ticket(
         ticket_id=ticket_id,
         idempotency_key=idempotency_key,
         ticket_in=ticket_in,
+    )
+
+
+@router.post(
+    "/{ticket_id}/actions/close",
+    response_model=TicketMutationResponse,
+)
+def close_ticket(
+    ticket_id: uuid.UUID,
+    session: SessionDep,
+    current_actor: CurrentActor,
+    idempotency_key: IdempotencyKey,
+    close_in: CloseTicketRequest,
+) -> TicketMutationResponse:
+    """提交人或管理角色确认结果并关闭待确认工单。"""
+
+    return close_ticket_service(
+        session=session,
+        actor=current_actor,
+        ticket_id=ticket_id,
+        idempotency_key=idempotency_key,
+        close_in=close_in,
     )

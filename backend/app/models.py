@@ -136,6 +136,7 @@ class StrictRequestModel(SQLModel):
 
 
 class TicketCreateRequest(StrictRequestModel):
+    """"""
     team_id: uuid.UUID
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1, max_length=10000)
@@ -238,6 +239,16 @@ class AssignmentPublic(SQLModel):
     version: int
 
 
+class AssignmentPage(SQLModel):
+    items: list[AssignmentPublic]
+    next_cursor: str | None = None
+
+
+class ActiveAssignmentResponse(SQLModel):
+    ticket_id: uuid.UUID
+    assignment: AssignmentPublic | None
+
+
 class TicketSummaryPublic(SQLModel):
     id: uuid.UUID
     team_id: uuid.UUID
@@ -273,6 +284,111 @@ class CommentPublic(SQLModel):
 class CommentPage(SQLModel):
     items: list[CommentPublic]
     next_cursor: str | None = None
+
+
+class DispatchCandidatePublic(SQLModel):
+    """候选预览展示处理人资格与负载，不替代正式派发时的锁内重算。"""
+
+    handler_id: uuid.UUID
+    handler: UserSummary
+    open_ticket_count: int
+    last_assigned_at: datetime | None
+    rank: int
+
+
+class DispatchCandidateListResponse(SQLModel):
+    ticket_id: uuid.UUID
+    team_id: uuid.UUID
+    items: list[DispatchCandidatePublic]
+    candidate_count: int
+
+
+class ManualDispatchRequest(StrictRequestModel):
+    mode: Literal["MANUAL"]
+    handler_id: uuid.UUID
+    reason: str | None = Field(default=None, max_length=1000)
+    expected_ticket_version: int = Field(ge=1)
+    expected_assignment_id: uuid.UUID | None = None
+    expected_assignment_version: int | None = Field(default=None, ge=1)
+
+    @field_validator("reason")
+    @classmethod
+    def strip_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+
+class AcceptAssignmentRequest(StrictRequestModel):
+    expected_ticket_version: int = Field(ge=1)
+    expected_assignment_version: int = Field(ge=1)
+
+
+class CompleteAssignmentRequest(StrictRequestModel):
+    completion_note: str = Field(min_length=1, max_length=5000)
+    expected_ticket_version: int = Field(ge=1)
+    expected_assignment_version: int = Field(ge=1)
+
+    @field_validator("completion_note")
+    @classmethod
+    def strip_completion_note(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+
+class CloseTicketRequest(StrictRequestModel):
+    resolution_note: str | None = Field(default=None, max_length=5000)
+    expected_ticket_version: int = Field(ge=1)
+
+    @field_validator("resolution_note")
+    @classmethod
+    def strip_resolution_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+
+class TicketStatePublic(SQLModel):
+    id: uuid.UUID
+    status: TicketStatus
+    version: int
+    updated_at: datetime
+
+
+class CandidateRankingEntry(SQLModel):
+    rank: int
+    handler_id: uuid.UUID
+    open_ticket_count: int
+    last_assigned_at: datetime | None
+    selected: bool
+
+
+class DispatchExplanation(SQLModel):
+    candidate_count: int
+    selected_handler_id: uuid.UUID
+    selected_open_ticket_count: int
+    ranked_candidates: list[CandidateRankingEntry]
+
+
+class DispatchResponse(SQLModel):
+    ticket: TicketStatePublic
+    assignment: AssignmentPublic
+    superseded_assignment_id: uuid.UUID | None
+    explanation: DispatchExplanation
+
+
+class TicketMutationResponse(SQLModel):
+    ticket: TicketStatePublic
+    changed_assignment: AssignmentPublic | None
+    superseded_assignment_id: uuid.UUID | None
 
 
 class UsersPublic(SQLModel):
