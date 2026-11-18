@@ -894,14 +894,6 @@ def test_vs3_openapi_exposes_manual_closed_loop_only(
         f"{settings.API_V1_STR}/tickets/{{ticket_id}}/actions/close",
     }
     assert new_paths.issubset(spec["paths"])
-    assert (
-        f"{settings.API_V1_STR}/assignments/{{assignment_id}}/reject"
-        not in spec["paths"]
-    )
-    assert (
-        f"{settings.API_V1_STR}/tickets/{{ticket_id}}/actions/reopen"
-        not in spec["paths"]
-    )
     manual_schema = spec["components"]["schemas"]["ManualDispatchRequest"]
     assert manual_schema["additionalProperties"] is False
     assert manual_schema["properties"]["mode"]["const"] == "MANUAL"

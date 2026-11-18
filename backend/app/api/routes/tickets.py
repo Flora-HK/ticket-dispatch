@@ -13,6 +13,7 @@ from app.api.deps import (
 )
 from app.models import (
     CloseTicketRequest,
+    ReopenTicketRequest,
     TicketCreateRequest,
     TicketDetailPublic,
     TicketMutationResponse,
@@ -20,7 +21,10 @@ from app.models import (
     TicketUpdateRequest,
 )
 from app.services import tickets as ticket_service
-from app.services.assignments import close_ticket as close_ticket_service
+from app.services.assignments import (
+    close_ticket as close_ticket_service,
+)
+from app.services.assignments import reopen_ticket as reopen_ticket_service
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -131,4 +135,26 @@ def close_ticket(
         ticket_id=ticket_id,
         idempotency_key=idempotency_key,
         close_in=close_in,
+    )
+
+
+@router.post(
+    "/{ticket_id}/actions/reopen",
+    response_model=TicketMutationResponse,
+)
+def reopen_ticket(
+    ticket_id: uuid.UUID,
+    session: SessionDep,
+    current_actor: CurrentActor,
+    idempotency_key: IdempotencyKey,
+    reopen_in: ReopenTicketRequest,
+) -> TicketMutationResponse:
+    """提交人或管理角色填写原因后重开已关闭工单。"""
+
+    return reopen_ticket_service(
+        session=session,
+        actor=current_actor,
+        ticket_id=ticket_id,
+        idempotency_key=idempotency_key,
+        reopen_in=reopen_in,
     )

@@ -18,6 +18,7 @@ from app.models import (
     DispatchCandidateListResponse,
     DispatchResponse,
     ManualDispatchRequest,
+    RejectAssignmentRequest,
     TicketMutationResponse,
 )
 from app.services.assignments import (
@@ -27,6 +28,7 @@ from app.services.assignments import (
     read_active_assignment,
     read_assignment_page,
     read_dispatch_candidates,
+    reject_assignment,
 )
 
 router = APIRouter(tags=["assignments"])
@@ -157,4 +159,26 @@ def complete_current_assignment(
         assignment_id=assignment_id,
         idempotency_key=idempotency_key,
         complete_in=complete_in,
+    )
+
+
+@router.post(
+    "/assignments/{assignment_id}/reject",
+    response_model=TicketMutationResponse,
+)
+def reject_current_assignment(
+    assignment_id: uuid.UUID,
+    session: SessionDep,
+    current_actor: CurrentActor,
+    idempotency_key: IdempotencyKey,
+    reject_in: RejectAssignmentRequest,
+) -> TicketMutationResponse:
+    """当前 Handler 拒绝派发，必须提供原因和双版本。"""
+
+    return reject_assignment(
+        session=session,
+        actor=current_actor,
+        assignment_id=assignment_id,
+        idempotency_key=idempotency_key,
+        reject_in=reject_in,
     )

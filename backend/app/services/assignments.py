@@ -27,6 +27,8 @@ from app.models import (
     DispatchResponse,
     ManualDispatchRequest,
     Notification,
+    RejectAssignmentRequest,
+    ReopenTicketRequest,
     TeamMembership,
     Ticket,
     TicketMutationResponse,
@@ -354,7 +356,10 @@ def _lock_ticket_for_dispatch(
         select(func.pg_advisory_xact_lock(_team_lock_id(ticket_ref.team_id)))
     ).one()
     ticket = session.exec(
-        select(Ticket).where(col(Ticket.id) == ticket_id).with_for_update()
+        select(Ticket)
+        .where(col(Ticket.id) == ticket_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     ).one()
     if ticket.team_id != ticket_ref.team_id:
         raise RuntimeError("ticket team changed while acquiring team lock")
@@ -369,7 +374,7 @@ def dispatch_manually(
     idempotency_key: str,
     dispatch_in: ManualDispatchRequest,
 ) -> DispatchResponse:
-    """执行首次人工派发，并在同一事务中更新负载、通知、审计和幂等快照。"""
+    """执行人工首次派发或重派，并在同一事务更新全部业务事实。"""
 
     payload = {
         "ticket_id": str(ticket_id),
@@ -400,13 +405,6 @@ def dispatch_manually(
                     "actual_ticket_version": ticket.version,
                 },
             )
-        if ticket.status in ("ASSIGNED", "IN_PROGRESS"):
-            raise APIError(
-                status_code=409,
-                code="ALREADY_ASSIGNED",
-                message="The ticket already has an active assignment.",
-                details={"ticket_id": str(ticket.id)},
-            )
         if ticket.status == "CLOSED":
             raise APIError(
                 status_code=409,
@@ -414,7 +412,11 @@ def dispatch_manually(
                 message="Closed tickets cannot be dispatched.",
                 details={"ticket_id": str(ticket.id)},
             )
-        if ticket.status != "PENDING_ASSIGNMENT":
+        if ticket.status not in (
+            "PENDING_ASSIGNMENT",
+            "ASSIGNED",
+            "IN_PROGRESS",
+        ):
             raise APIError(
                 status_code=409,
                 code="INVALID_TRANSITION",
@@ -424,6 +426,92 @@ def dispatch_manually(
                     "ticket_status": ticket.status,
                 },
             )
+
+        active_assignment = session.exec(
+            select(Assignment)
+            .where(
+                col(Assignment.ticket_id) == ticket.id,
+                col(Assignment.status).in_(("ASSIGNED", "ACCEPTED")),
+            )
+            .order_by(
+                col(Assignment.assigned_at).desc(),
+                col(Assignment.id).desc(),
+            )
+            .limit(1)
+            .with_for_update()
+        ).first()
+        superseded_assignment_id: uuid.UUID | None = None
+        if ticket.status == "PENDING_ASSIGNMENT" and active_assignment is not None:
+            raise APIError(
+                status_code=409,
+                code="ALREADY_ASSIGNED",
+                message="The ticket already has an active assignment.",
+                details={"ticket_id": str(ticket.id)},
+            )
+        if ticket.status in ("ASSIGNED", "IN_PROGRESS"):
+            if active_assignment is None:
+                raise APIError(
+                    status_code=409,
+                    code="INVALID_TRANSITION",
+                    message="The ticket has no active assignment to replace.",
+                    details={"ticket_id": str(ticket.id)},
+                )
+            if active_assignment.handler_id == dispatch_in.handler_id:
+                raise APIError(
+                    status_code=409,
+                    code="DUPLICATE_ASSIGNMENT",
+                    message="The selected handler already owns this assignment.",
+                    details={
+                        "ticket_id": str(ticket.id),
+                        "assignment_id": str(active_assignment.id),
+                    },
+                )
+            if dispatch_in.reason is None:
+                raise APIError(
+                    status_code=422,
+                    code="REASON_REQUIRED",
+                    message="A reason is required when reassigning a ticket.",
+                )
+            if (
+                dispatch_in.expected_assignment_id is None
+                or dispatch_in.expected_assignment_version is None
+            ):
+                raise APIError(
+                    status_code=422,
+                    code="VALIDATION_ERROR",
+                    message="The active assignment version is required.",
+                    details={
+                        "fields": [
+                            {
+                                "loc": ["body", "expected_assignment_id"],
+                                "message": "Required for reassignment",
+                                "type": "missing",
+                            },
+                            {
+                                "loc": ["body", "expected_assignment_version"],
+                                "message": "Required for reassignment",
+                                "type": "missing",
+                            },
+                        ]
+                    },
+                )
+            if (
+                active_assignment.id != dispatch_in.expected_assignment_id
+                or active_assignment.version
+                != dispatch_in.expected_assignment_version
+            ):
+                raise APIError(
+                    status_code=409,
+                    code="STALE_VERSION",
+                    message="The assignment has changed. Reload and try again.",
+                    details={
+                        "assignment_id": str(active_assignment.id),
+                        "expected_assignment_version": (
+                            dispatch_in.expected_assignment_version
+                        ),
+                        "actual_assignment_version": active_assignment.version,
+                    },
+                )
 
         candidates = read_dispatch_candidates(session=session, ticket_id=ticket.id)
         selected = next(
@@ -447,6 +535,38 @@ def dispatch_manually(
 
         now = get_datetime_utc()
         before_state = {"status": ticket.status, "version": ticket.version}
+        if active_assignment is not None:
+            active_assignment.status = "SUPERSEDED"
+            active_assignment.reason = dispatch_in.reason
+            active_assignment.version += 1
+            session.add(active_assignment)
+            session.flush()
+            superseded_assignment_id = active_assignment.id
+            session.add(
+                AuditLog(
+                    actor_user_id=actor.user_id,
+                    actor_type="USER",
+                    action="ASSIGNMENT_SUPERSEDED",
+                    entity_type="ASSIGNMENT",
+                    entity_id=active_assignment.id,
+                    ticket_id=ticket.id,
+                    before_state=before_state,
+                    after_state={
+                        "status": "ASSIGNED",
+                        "version": ticket.version + 1,
+                    },
+                    outcome="SUCCESS",
+                    request_id=uuid.UUID(actor.request_id),
+                    idempotency_key=idempotency_key,
+                    detail={
+                        "changed_fields": ["assignment_status", "reason"],
+                        "previous_status": before_state["status"],
+                        "next_status": "ASSIGNED",
+                        "note": dispatch_in.reason,
+                    },
+                )
+            )
+
         assignment = Assignment(
             ticket_id=ticket.id,
             handler_id=selected.handler_id,
@@ -537,7 +657,7 @@ def dispatch_manually(
         result = DispatchResponse(
             ticket=_ticket_state(ticket),
             assignment=assignment_public,
-            superseded_assignment_id=None,
+            superseded_assignment_id=superseded_assignment_id,
             explanation=explanation,
         )
         response_body = result.model_dump(mode="json")
@@ -580,7 +700,10 @@ def _lock_ticket_and_assignment(
         select(func.pg_advisory_xact_lock(_team_lock_id(ticket_ref.team_id)))
     ).one()
     ticket = session.exec(
-        select(Ticket).where(col(Ticket.id) == ticket_ref.id).with_for_update()
+        select(Ticket)
+        .where(col(Ticket.id) == ticket_ref.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     ).one()
     visible_ticket = session.exec(
         select(Ticket.id).where(
@@ -598,6 +721,7 @@ def _lock_ticket_and_assignment(
         select(Assignment)
         .where(col(Assignment.id) == assignment_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     ).one()
     if assignment.handler_id != actor.user_id:
         raise APIError(
@@ -641,6 +765,13 @@ def accept_assignment(
             actor=actor,
             assignment_id=assignment_id,
         )
+        if assignment.status == "SUPERSEDED":
+            raise APIError(
+                status_code=409,
+                code="ASSIGNMENT_SUPERSEDED",
+                message="The assignment has been superseded.",
+                details={"assignment_id": str(assignment.id)},
+            )
         if ticket.version != accept_in.expected_ticket_version:
             raise APIError(
                 status_code=409,
@@ -662,13 +793,6 @@ def accept_assignment(
                     ),
                     "actual_assignment_version": assignment.version,
                 },
-            )
-        if assignment.status == "SUPERSEDED":
-            raise APIError(
-                status_code=409,
-                code="ASSIGNMENT_SUPERSEDED",
-                message="The assignment has been superseded.",
-                details={"assignment_id": str(assignment.id)},
             )
         if ticket.status != "ASSIGNED" or assignment.status != "ASSIGNED":
             raise APIError(
@@ -769,6 +893,13 @@ def complete_assignment(
             actor=actor,
             assignment_id=assignment_id,
         )
+        if assignment.status == "SUPERSEDED":
+            raise APIError(
+                status_code=409,
+                code="ASSIGNMENT_SUPERSEDED",
+                message="The assignment has been superseded.",
+                details={"assignment_id": str(assignment.id)},
+            )
         if ticket.version != complete_in.expected_ticket_version:
             raise APIError(
                 status_code=409,
@@ -790,13 +921,6 @@ def complete_assignment(
                     ),
                     "actual_assignment_version": assignment.version,
                 },
-            )
-        if assignment.status == "SUPERSEDED":
-            raise APIError(
-                status_code=409,
-                code="ASSIGNMENT_SUPERSEDED",
-                message="The assignment has been superseded.",
-                details={"assignment_id": str(assignment.id)},
             )
         if ticket.status != "IN_PROGRESS" or assignment.status != "ACCEPTED":
             raise APIError(
@@ -867,6 +991,136 @@ def complete_assignment(
         return result
 
 
+def reject_assignment(
+    *,
+    session: Session,
+    actor: ActorContext,
+    assignment_id: uuid.UUID,
+    idempotency_key: str,
+    reject_in: RejectAssignmentRequest,
+) -> TicketMutationResponse:
+    """当前 Handler 拒绝派发；Ticket 回到待派发并释放活动 Assignment。"""
+
+    payload = {
+        "assignment_id": str(assignment_id),
+        **reject_in.model_dump(mode="json"),
+    }
+    if session.in_transaction():
+        session.rollback()
+    with session.begin():
+        reservation = begin_idempotent_command(
+            session=session,
+            actor_user_id=actor.user_id,
+            command_scope="REJECT_ASSIGNMENT",
+            idempotency_key=idempotency_key,
+            payload=payload,
+        )
+        if reservation.replay is not None:
+            return TicketMutationResponse.model_validate(reservation.replay.body)
+
+        ticket, assignment = _lock_ticket_and_assignment(
+            session=session,
+            actor=actor,
+            assignment_id=assignment_id,
+        )
+        if assignment.status == "SUPERSEDED":
+            raise APIError(
+                status_code=409,
+                code="ASSIGNMENT_SUPERSEDED",
+                message="The assignment has been superseded.",
+                details={"assignment_id": str(assignment.id)},
+            )
+        if ticket.version != reject_in.expected_ticket_version:
+            raise APIError(
+                status_code=409,
+                code="STALE_VERSION",
+                message="The ticket has changed. Reload and try again.",
+                details={
+                    "expected_ticket_version": reject_in.expected_ticket_version,
+                    "actual_ticket_version": ticket.version,
+                },
+            )
+        if assignment.version != reject_in.expected_assignment_version:
+            raise APIError(
+                status_code=409,
+                code="STALE_VERSION",
+                message="The assignment has changed. Reload and try again.",
+                details={
+                    "expected_assignment_version": (
+                        reject_in.expected_assignment_version
+                    ),
+                    "actual_assignment_version": assignment.version,
+                },
+            )
+        if ticket.status != "ASSIGNED" or assignment.status != "ASSIGNED":
+            raise APIError(
+                status_code=409,
+                code="INVALID_TRANSITION",
+                message="The assignment cannot be rejected in its current state.",
+                details={
+                    "ticket_id": str(ticket.id),
+                    "assignment_id": str(assignment.id),
+                    "ticket_status": ticket.status,
+                },
+            )
+
+        now = get_datetime_utc()
+        before_state = {"status": ticket.status, "version": ticket.version}
+        assignment.status = "REJECTED"
+        assignment.reason = reject_in.reason
+        assignment.responded_at = now
+        assignment.version += 1
+        ticket.status = "PENDING_ASSIGNMENT"
+        ticket.version += 1
+        ticket.updated_at = now
+        session.add(assignment)
+        session.add(ticket)
+        session.flush()
+
+        session.add(
+            AuditLog(
+                actor_user_id=actor.user_id,
+                actor_type="USER",
+                action="ASSIGNMENT_REJECTED",
+                entity_type="ASSIGNMENT",
+                entity_id=assignment.id,
+                ticket_id=ticket.id,
+                before_state=before_state,
+                after_state={"status": ticket.status, "version": ticket.version},
+                outcome="SUCCESS",
+                request_id=uuid.UUID(actor.request_id),
+                idempotency_key=idempotency_key,
+                detail={
+                    "changed_fields": ["status", "reason"],
+                    "previous_status": before_state["status"],
+                    "next_status": ticket.status,
+                    "note": reject_in.reason,
+                },
+            )
+        )
+        result = TicketMutationResponse(
+            ticket=_ticket_state(ticket),
+            changed_assignment=_assignment_public(
+                session=session,
+                assignment=assignment,
+            ),
+            superseded_assignment_id=None,
+        )
+        response_body = result.model_dump(mode="json")
+        finish_idempotent_command(
+            session=session,
+            actor_user_id=actor.user_id,
+            command_scope="REJECT_ASSIGNMENT",
+            idempotency_key=idempotency_key,
+            reservation=reservation,
+            response_status=200,
+            response_body=response_body,
+            resource_type="ASSIGNMENT",
+            resource_id=assignment.id,
+        )
+        return result
+
+
 def _lock_visible_ticket_for_action(
     *,
     session: Session,
@@ -884,7 +1138,10 @@ def _lock_visible_ticket_for_action(
         select(func.pg_advisory_xact_lock(_team_lock_id(ticket_ref.team_id)))
     ).one()
     ticket = session.exec(
-        select(Ticket).where(col(Ticket.id) == ticket_id).with_for_update()
+        select(Ticket)
+        .where(col(Ticket.id) == ticket_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     ).one()
     visible = session.exec(
         select(Ticket.id).where(
@@ -1004,6 +1261,116 @@ def close_ticket(
             session=session,
             actor_user_id=actor.user_id,
             command_scope="CLOSE_TICKET",
+            idempotency_key=idempotency_key,
+            reservation=reservation,
+            response_status=200,
+            response_body=response_body,
+            resource_type="TICKET",
+            resource_id=ticket.id,
+        )
+        return result
+
+
+def reopen_ticket(
+    *,
+    session: Session,
+    actor: ActorContext,
+    ticket_id: uuid.UUID,
+    idempotency_key: str,
+    reopen_in: ReopenTicketRequest,
+) -> TicketMutationResponse:
+    """提交人或管理角色重开已关闭工单，历史 Assignment 保持不可变。"""
+
+    payload = {
+        "ticket_id": str(ticket_id),
+        **reopen_in.model_dump(mode="json"),
+    }
+    if session.in_transaction():
+        session.rollback()
+    with session.begin():
+        reservation = begin_idempotent_command(
+            session=session,
+            actor_user_id=actor.user_id,
+            command_scope="REOPEN_TICKET",
+            idempotency_key=idempotency_key,
+            payload=payload,
+        )
+        if reservation.replay is not None:
+            return TicketMutationResponse.model_validate(reservation.replay.body)
+
+        ticket = _lock_visible_ticket_for_action(
+            session=session,
+            actor=actor,
+            ticket_id=ticket_id,
+        )
+        if (
+            ticket.submitter_id != actor.user_id
+            and not actor.has_any_role(("DISPATCHER", "ADMIN"))
+        ):
+            raise APIError(
+                status_code=403,
+                code="ACTION_FORBIDDEN",
+                message="The ticket cannot be reopened by this user.",
+                details={"ticket_id": str(ticket.id)},
+            )
+        if ticket.version != reopen_in.expected_ticket_version:
+            raise APIError(
+                status_code=409,
+                code="STALE_VERSION",
+                message="The ticket has changed. Reload and try again.",
+                details={
+                    "expected_ticket_version": reopen_in.expected_ticket_version,
+                    "actual_ticket_version": ticket.version,
+                },
+            )
+        if ticket.status != "CLOSED":
+            raise APIError(
+                status_code=409,
+                code="INVALID_TRANSITION",
+                message="Only closed tickets can be reopened.",
+                details={
+                    "ticket_id": str(ticket.id),
+                    "ticket_status": ticket.status,
+                },
+            )
+
+        before_state = {"status": ticket.status, "version": ticket.version}
+        ticket.status = "PENDING_ASSIGNMENT"
+        ticket.version += 1
+        ticket.updated_at = get_datetime_utc()
+        session.add(ticket)
+        session.flush()
+        session.add(
+            AuditLog(
+                actor_user_id=actor.user_id,
+                actor_type="USER",
+                action="TICKET_REOPENED",
+                entity_type="TICKET",
+                entity_id=ticket.id,
+                ticket_id=ticket.id,
+                before_state=before_state,
+                after_state={"status": ticket.status, "version": ticket.version},
+                outcome="SUCCESS",
+                request_id=uuid.UUID(actor.request_id),
+                idempotency_key=idempotency_key,
+                detail={
+                    "changed_fields": ["status", "reason"],
+                    "previous_status": before_state["status"],
+                    "next_status": ticket.status,
+                    "note": reopen_in.reason,
+                },
+            )
+        )
+        result = TicketMutationResponse(
+            ticket=_ticket_state(ticket),
+            changed_assignment=None,
+            superseded_assignment_id=None,
+        )
+        response_body = result.model_dump(mode="json")
+        finish_idempotent_command(
+            session=session,
+            actor_user_id=actor.user_id,
+            command_scope="REOPEN_TICKET",
             idempotency_key=idempotency_key,
             reservation=reservation,
             response_status=200,

@@ -132,7 +132,7 @@ class UserUpdateMe(SQLModel):
 class StrictRequestModel(SQLModel):
     """业务写请求不接受契约外字段，避免客户端误把服务端事实当作可写输入。"""
 
-    model_config: ClassVar[Any] = {"extra": "forbid"}
+    model_config: ClassVar[Any] = {"extra": "forbid"}  # ClassVar 为类级配置
 
 
 class TicketCreateRequest(StrictRequestModel):
@@ -327,6 +327,20 @@ class AcceptAssignmentRequest(StrictRequestModel):
     expected_assignment_version: int = Field(ge=1)
 
 
+class RejectAssignmentRequest(StrictRequestModel):
+    reason: str = Field(min_length=1, max_length=1000)
+    expected_ticket_version: int = Field(ge=1)
+    expected_assignment_version: int = Field(ge=1)
+
+    @field_validator("reason")
+    @classmethod
+    def strip_rejection_reason(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+
 class CompleteAssignmentRequest(StrictRequestModel):
     completion_note: str = Field(min_length=1, max_length=5000)
     expected_ticket_version: int = Field(ge=1)
@@ -350,6 +364,19 @@ class CloseTicketRequest(StrictRequestModel):
     def strip_resolution_note(cls, value: str | None) -> str | None:
         if value is None:
             return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+
+class ReopenTicketRequest(StrictRequestModel):
+    reason: str = Field(min_length=1, max_length=1000)
+    expected_ticket_version: int = Field(ge=1)
+
+    @field_validator("reason")
+    @classmethod
+    def strip_reopen_reason(cls, value: str) -> str:
         stripped = value.strip()
         if not stripped:
             raise ValueError("must not be blank")

@@ -65,11 +65,24 @@ async def request_validation_error_handler(
         }
         for error in exc.errors()
     ]
+    field_names = {
+        field["loc"][-1]
+        for field in fields
+        if field["loc"]
+    }
+    code = "VALIDATION_ERROR"
+    if "reason" in field_names and (
+        request.url.path.endswith("/reject")
+        or request.url.path.endswith("/actions/reopen")
+    ):
+        code = "REASON_REQUIRED"
+    elif "completion_note" in field_names:
+        code = "COMPLETION_NOTE_REQUIRED"
     response = JSONResponse(
         status_code=422,
         content={
             "error": {
-                "code": "VALIDATION_ERROR",
+                "code": code,
                 "message": "The request validation failed.",
                 "request_id": request_id,
                 "details": {"fields": fields},
