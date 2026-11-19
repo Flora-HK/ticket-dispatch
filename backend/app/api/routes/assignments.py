@@ -16,20 +16,20 @@ from app.models import (
     AssignmentPage,
     CompleteAssignmentRequest,
     DispatchCandidateListResponse,
+    DispatchRequest,
     DispatchResponse,
-    ManualDispatchRequest,
     RejectAssignmentRequest,
     TicketMutationResponse,
 )
 from app.services.assignments import (
     accept_assignment,
     complete_assignment,
-    dispatch_manually,
     read_active_assignment,
     read_assignment_page,
     read_dispatch_candidates,
     reject_assignment,
 )
+from app.services.assignments import dispatch_ticket as dispatch_ticket_service
 
 router = APIRouter(tags=["assignments"])
 
@@ -105,11 +105,11 @@ def dispatch_ticket(
     session: SessionDep,
     current_actor: DispatchManager,
     idempotency_key: IdempotencyKey,
-    dispatch_in: ManualDispatchRequest,
+    dispatch_in: DispatchRequest,
 ) -> DispatchResponse:
-    """人工派发在 Team 与 Ticket 锁内重算候选并完成全部原子写入。"""
+    """人工或自动派发在 Team 与 Ticket 锁内重算候选并原子写入。"""
 
-    return dispatch_manually(
+    return dispatch_ticket_service(
         session=session,
         actor=current_actor,
         ticket_id=ticket_id,

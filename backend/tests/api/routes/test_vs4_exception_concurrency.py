@@ -867,4 +867,3 @@ def test_vs4_openapi_adds_exception_actions_without_auto_dispatch(
     )
     dispatch_schema = spec["components"]["schemas"]["ManualDispatchRequest"]
     assert dispatch_schema["properties"]["mode"]["const"] == "MANUAL"
-    assert "AutoDispatchRequest" not in spec["components"]["schemas"]

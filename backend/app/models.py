@@ -1,6 +1,6 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any, ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import EmailStr, field_validator, model_validator
 from sqlalchemy import BigInteger, CheckConstraint, Index, Text, UniqueConstraint, text
@@ -320,6 +320,31 @@ class ManualDispatchRequest(StrictRequestModel):
         if not stripped:
             raise ValueError("must not be blank")
         return stripped
+
+
+class AutoDispatchRequest(StrictRequestModel):
+    mode: Literal["AUTO"]
+    strategy: Literal["LEAST_OPEN_TICKET"]
+    reason: str | None = Field(default=None, max_length=1000)
+    expected_ticket_version: int = Field(ge=1)
+    expected_assignment_id: uuid.UUID | None = None
+    expected_assignment_version: int | None = Field(default=None, ge=1)
+
+    @field_validator("reason")
+    @classmethod
+    def strip_auto_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+
+type DispatchRequest = Annotated[
+    ManualDispatchRequest | AutoDispatchRequest,
+    Field(discriminator="mode"),
+]
 
 
 class AcceptAssignmentRequest(StrictRequestModel):

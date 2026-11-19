@@ -24,8 +24,8 @@ from app.models import (
     DispatchCandidateListResponse,
     DispatchCandidatePublic,
     DispatchExplanation,
+    DispatchRequest,
     DispatchResponse,
-    ManualDispatchRequest,
     Notification,
     RejectAssignmentRequest,
     ReopenTicketRequest,
@@ -38,6 +38,12 @@ from app.models import (
     UserRole,
     UserSummary,
     get_datetime_utc,
+)
+from app.services.dispatch_strategy import (
+    DispatchCandidateData,
+    DispatchDecision,
+    LeastOpenTicketStrategy,
+    ManualDispatchStrategy,
 )
 from app.services.idempotency import (
     begin_idempotent_command,
@@ -366,15 +372,15 @@ def _lock_ticket_for_dispatch(
     return ticket
 
 
-def dispatch_manually(
+def dispatch_ticket(
     *,
     session: Session,
     actor: ActorContext,
     ticket_id: uuid.UUID,
     idempotency_key: str,
-    dispatch_in: ManualDispatchRequest,
+    dispatch_in: DispatchRequest,
 ) -> DispatchResponse:
-    """执行人工首次派发或重派，并在同一事务更新全部业务事实。"""
+    """执行人工或自动首次派发/重派，并在同一事务更新全部业务事实。"""
 
     payload = {
         "ticket_id": str(ticket_id),
@@ -382,7 +388,7 @@ def dispatch_manually(
     }
     if session.in_transaction():
         session.rollback()
-    with session.begin():
+    with session.begin() as transaction:
         reservation = begin_idempotent_command(
             session=session,
             actor_user_id=actor.user_id,
@@ -440,6 +446,8 @@ def dispatch_manually(
             .limit(1)
             .with_for_update()
         ).first()
+        prefetched_candidates: DispatchCandidateListResponse | None = None
+        prefetched_decision: DispatchDecision | None = None
         superseded_assignment_id: uuid.UUID | None = None
         if ticket.status == "PENDING_ASSIGNMENT" and active_assignment is not None:
             raise APIError(
@@ -456,7 +464,38 @@ def dispatch_manually(
                     message="The ticket has no active assignment to replace.",
                     details={"ticket_id": str(ticket.id)},
                 )
-            if active_assignment.handler_id == dispatch_in.handler_id:
+            if dispatch_in.mode == "AUTO":
+                prefetched_candidates = read_dispatch_candidates(
+                    session=session,
+                    ticket_id=ticket.id,
+                )
+                prefetched_decision = LeastOpenTicketStrategy().choose(
+                    tuple(
+                        DispatchCandidateData(
+                            handler_id=item.handler_id,
+                            open_ticket_count=item.open_ticket_count,
+                            last_assigned_at=item.last_assigned_at,
+                        )
+                        for item in prefetched_candidates.items
+                    )
+                )
+                if (
+                    prefetched_decision.selected_handler_id
+                    == active_assignment.handler_id
+                ):
+                    raise APIError(
+                        status_code=409,
+                        code="DUPLICATE_ASSIGNMENT",
+                        message="The selected handler already owns this assignment.",
+                        details={
+                            "ticket_id": str(ticket.id),
+                            "assignment_id": str(active_assignment.id),
+                        },
+                    )
+            if (
+                dispatch_in.mode == "MANUAL"
+                and active_assignment.handler_id == dispatch_in.handler_id
+            ):
                 raise APIError(
                     status_code=409,
                     code="DUPLICATE_ASSIGNMENT",
@@ -513,23 +552,112 @@ def dispatch_manually(
                     },
                 )
 
-        candidates = read_dispatch_candidates(session=session, ticket_id=ticket.id)
-        selected = next(
-            (
-                item
+        candidates = (
+            prefetched_candidates
+            if prefetched_candidates is not None
+            else read_dispatch_candidates(session=session, ticket_id=ticket.id)
+        )
+        if prefetched_decision is not None:
+            decision = prefetched_decision
+        else:
+            candidate_data = tuple(
+                DispatchCandidateData(
+                    handler_id=item.handler_id,
+                    open_ticket_count=item.open_ticket_count,
+                    last_assigned_at=item.last_assigned_at,
+                )
                 for item in candidates.items
-                if item.handler_id == dispatch_in.handler_id
-            ),
-            None,
+            )
+            if dispatch_in.mode == "MANUAL":
+                decision = ManualDispatchStrategy().choose(
+                    dispatch_in.handler_id,
+                    candidate_data,
+                )
+            else:
+                decision = LeastOpenTicketStrategy().choose(candidate_data)
+
+        selected = (
+            next(
+                (
+                    item
+                    for item in candidates.items
+                    if item.handler_id == decision.selected_handler_id
+                ),
+                None,
+            )
+            if decision.selected_handler_id is not None
+            else None
         )
         if selected is None:
+            if dispatch_in.mode == "AUTO":
+                failure_ticket_id = str(ticket.id)
+                failure_ticket_status = ticket.status
+                failure_ticket_version = ticket.version
+                failure_candidate_count = candidates.candidate_count
+                session.add(
+                    AuditLog(
+                        actor_user_id=actor.user_id,
+                        actor_type="USER",
+                        action="AUTO_ASSIGN_FAILED",
+                        entity_type="TICKET",
+                        entity_id=ticket.id,
+                        ticket_id=ticket.id,
+                        before_state={
+                            "status": failure_ticket_status,
+                            "version": failure_ticket_version,
+                        },
+                        after_state={
+                            "status": failure_ticket_status,
+                            "version": failure_ticket_version,
+                        },
+                        outcome="FAILED",
+                        error_code="NO_ELIGIBLE_HANDLER",
+                        request_id=uuid.UUID(actor.request_id),
+                        idempotency_key=idempotency_key,
+                        detail={
+                            "changed_fields": [],
+                            "previous_status": failure_ticket_status,
+                            "next_status": failure_ticket_status,
+                            "strategy_code": decision.strategy_code,
+                            "strategy_version": decision.strategy_version,
+                            "candidate_count": failure_candidate_count,
+                        },
+                    )
+                )
+                session.flush()
+                transaction.commit()
+            else:
+                failure_ticket_id = str(ticket.id)
+                failure_candidate_count = candidates.candidate_count
             raise APIError(
                 status_code=409,
-                code="HANDLER_NOT_ELIGIBLE",
-                message="The selected handler is not eligible for this ticket.",
+                code=(
+                    "NO_ELIGIBLE_HANDLER"
+                    if dispatch_in.mode == "AUTO"
+                    else "HANDLER_NOT_ELIGIBLE"
+                ),
+                message=(
+                    "No eligible handler is available for this team."
+                    if dispatch_in.mode == "AUTO"
+                    else "The selected handler is not eligible for this ticket."
+                ),
+                details={
+                    "ticket_id": failure_ticket_id,
+                    "candidate_count": failure_candidate_count,
+                    "assignment_changed": False,
+                },
+            )
+        if (
+            active_assignment is not None
+            and active_assignment.handler_id == selected.handler_id
+        ):
+            raise APIError(
+                status_code=409,
+                code="DUPLICATE_ASSIGNMENT",
+                message="The selected handler already owns this assignment.",
                 details={
                     "ticket_id": str(ticket.id),
-                    "assignment_changed": False,
+                    "assignment_id": str(active_assignment.id),
                 },
             )
 
@@ -572,9 +700,9 @@ def dispatch_manually(
             handler_id=selected.handler_id,
             assigned_by_id=actor.user_id,
             status="ASSIGNED",
-            dispatch_mode="MANUAL",
-            strategy_code="MANUAL",
-            strategy_version="v1",
+            dispatch_mode=dispatch_in.mode,
+            strategy_code=decision.strategy_code,
+            strategy_version=decision.strategy_version,
             selection_summary={
                 "candidate_count": candidates.candidate_count,
                 "selected_handler_id": str(selected.handler_id),
@@ -630,8 +758,8 @@ def dispatch_manually(
                     "changed_fields": ["status", "active_assignment"],
                     "previous_status": before_state["status"],
                     "next_status": ticket.status,
-                    "strategy_code": "MANUAL",
-                    "strategy_version": "v1",
+                    "strategy_code": decision.strategy_code,
+                    "strategy_version": decision.strategy_version,
                     "candidate_count": candidates.candidate_count,
                     "selected_handler_id": str(selected.handler_id),
                 },
@@ -645,13 +773,13 @@ def dispatch_manually(
             selected_open_ticket_count=selected.open_ticket_count,
             ranked_candidates=[
                 CandidateRankingEntry(
-                    rank=item.rank,
+                    rank=rank,
                     handler_id=item.handler_id,
                     open_ticket_count=item.open_ticket_count,
                     last_assigned_at=item.last_assigned_at,
                     selected=item.handler_id == selected.handler_id,
                 )
-                for item in candidates.items
+                for rank, item in enumerate(decision.ranked_candidates, start=1)
             ],
         )
         result = DispatchResponse(
