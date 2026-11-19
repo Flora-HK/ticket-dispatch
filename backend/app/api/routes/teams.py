@@ -2,16 +2,45 @@ import base64
 import json
 import uuid
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, or_
 from sqlmodel import col, select
 
-from app.api.deps import CurrentActor, SessionDep
+from app.api.deps import (
+    ActorContext,
+    CurrentActor,
+    IdempotencyKey,
+    SessionDep,
+    get_current_admin,
+    require_roles,
+)
 from app.core.errors import APIError
-from app.models import Team, TeamPage, TeamPublic
+from app.models import (
+    Team,
+    TeamCreateRequest,
+    TeamMembershipMutationResponse,
+    TeamMembershipPage,
+    TeamMembershipUpsertRequest,
+    TeamPage,
+    TeamPublic,
+    TeamUpdateRequest,
+)
+from app.services.governance import (
+    create_team_managed,
+    list_team_members,
+    remove_team_member,
+    update_team_managed,
+    upsert_team_member,
+)
 
 router = APIRouter(prefix="/teams", tags=["teams"])
+
+TeamMemberManager = Annotated[
+    ActorContext,
+    Depends(require_roles("DISPATCHER", "ADMIN")),
+]
 
 
 def _encode_cursor(team: Team) -> str:
@@ -99,3 +128,116 @@ def read_team(
             message="The team does not exist.",
         )
     return TeamPublic.model_validate(team)
+
+
+@router.post(
+    "",
+    dependencies=[Depends(get_current_admin)],
+    response_model=TeamPublic,
+    status_code=201,
+)
+def create_team(
+    *,
+    session: SessionDep,
+    current_actor: CurrentActor,
+    team_in: TeamCreateRequest,
+    idempotency_key: IdempotencyKey,
+) -> TeamPublic:
+    return create_team_managed(
+        session=session,
+        actor=current_actor,
+        idempotency_key=idempotency_key,
+        team_in=team_in,
+    )
+
+
+@router.patch(
+    "/{team_id}",
+    dependencies=[Depends(get_current_admin)],
+    response_model=TeamPublic,
+)
+def update_team(
+    *,
+    session: SessionDep,
+    current_actor: CurrentActor,
+    team_id: uuid.UUID,
+    team_in: TeamUpdateRequest,
+    idempotency_key: IdempotencyKey,
+) -> TeamPublic:
+    return update_team_managed(
+        session=session,
+        actor=current_actor,
+        team_id=team_id,
+        idempotency_key=idempotency_key,
+        team_in=team_in,
+    )
+
+
+@router.get(
+    "/{team_id}/members",
+    response_model=TeamMembershipPage,
+)
+def read_team_members(
+    team_id: uuid.UUID,
+    session: SessionDep,
+    current_actor: TeamMemberManager,
+    is_available: bool | None = None,
+    cursor: str | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+) -> TeamMembershipPage:
+    return list_team_members(
+        session=session,
+        actor=current_actor,
+        team_id=team_id,
+        is_available=is_available,
+        cursor=cursor,
+        limit=limit,
+    )
+
+
+@router.put(
+    "/{team_id}/members/{user_id}",
+    dependencies=[Depends(get_current_admin)],
+    response_model=TeamMembershipMutationResponse,
+)
+def upsert_member(
+    *,
+    session: SessionDep,
+    current_actor: CurrentActor,
+    team_id: uuid.UUID,
+    user_id: uuid.UUID,
+    membership_in: TeamMembershipUpsertRequest,
+    idempotency_key: IdempotencyKey,
+) -> TeamMembershipMutationResponse:
+    return upsert_team_member(
+        session=session,
+        actor=current_actor,
+        team_id=team_id,
+        user_id=user_id,
+        idempotency_key=idempotency_key,
+        membership_in=membership_in,
+    )
+
+
+@router.delete(
+    "/{team_id}/members/{user_id}",
+    dependencies=[Depends(get_current_admin)],
+    response_model=TeamMembershipMutationResponse,
+)
+def delete_member(
+    *,
+    session: SessionDep,
+    current_actor: CurrentActor,
+    team_id: uuid.UUID,
+    user_id: uuid.UUID,
+    expected_team_version: int = Query(ge=1),
+    idempotency_key: IdempotencyKey,
+) -> TeamMembershipMutationResponse:
+    return remove_team_member(
+        session=session,
+        actor=current_actor,
+        team_id=team_id,
+        user_id=user_id,
+        expected_team_version=expected_team_version,
+        idempotency_key=idempotency_key,
+    )

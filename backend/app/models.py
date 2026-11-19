@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, ClassVar, Literal
 
-from pydantic import EmailStr, field_validator, model_validator
+from pydantic import EmailStr, SecretStr, field_validator, model_validator
 from sqlalchemy import BigInteger, CheckConstraint, Index, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
@@ -135,6 +135,52 @@ class StrictRequestModel(SQLModel):
     model_config: ClassVar[Any] = {"extra": "forbid"}  # ClassVar 为类级配置
 
 
+class UserSelfUpdateRequest(StrictRequestModel):
+    email: EmailStr | None = Field(default=None, max_length=255)
+    full_name: str | None = Field(default=None, max_length=255)
+    expected_user_version: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def require_profile_change(self) -> UserSelfUpdateRequest:
+        if self.email is None and self.full_name is None:
+            raise ValueError("at least one profile field is required")
+        return self
+
+
+class UserAdminUpdateRequest(StrictRequestModel):
+    email: EmailStr | None = Field(default=None, max_length=255)
+    full_name: str | None = Field(default=None, max_length=255)
+    is_active: bool | None = None
+    password: SecretStr | None = None
+    expected_user_version: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def require_admin_change(self) -> UserAdminUpdateRequest:
+        if all(
+            value is None
+            for value in (
+                self.email,
+                self.full_name,
+                self.is_active,
+                self.password,
+            )
+        ):
+            raise ValueError("at least one user field is required")
+        return self
+
+
+class RoleSetReplaceRequest(StrictRequestModel):
+    roles: list[RoleCode] = Field(min_length=1)
+    expected_user_version: int = Field(ge=1)
+
+
+class UserCreateRequest(StrictRequestModel):
+    email: EmailStr = Field(max_length=255)
+    password: SecretStr = Field(min_length=8, max_length=128)
+    full_name: str | None = Field(default=None, max_length=255)
+    roles: list[RoleCode] = Field(min_length=1)
+
+
 class TicketCreateRequest(StrictRequestModel):
     """"""
     team_id: uuid.UUID
@@ -213,6 +259,11 @@ class UserPublic(UserSummary):
     roles: list[RoleCode]
     version: int
     created_at: datetime | None = None
+
+
+class UserPage(SQLModel):
+    items: list[UserPublic]
+    next_cursor: str | None = None
 
 
 class TeamSummary(SQLModel):
@@ -463,6 +514,66 @@ class TeamPage(SQLModel):
 
     items: list[TeamPublic]
     next_cursor: str | None = None
+
+
+class TeamCreateRequest(StrictRequestModel):
+    name: str = Field(min_length=1, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def strip_team_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+
+class TeamUpdateRequest(StrictRequestModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    is_active: bool | None = None
+    expected_version: int = Field(ge=1)
+
+    @field_validator("name")
+    @classmethod
+    def strip_optional_team_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+    @model_validator(mode="after")
+    def require_team_change(self) -> TeamUpdateRequest:
+        if self.name is None and self.is_active is None:
+            raise ValueError("at least one team field is required")
+        return self
+
+
+class TeamMembershipPublic(SQLModel):
+    id: uuid.UUID
+    user: UserSummary
+    is_available: bool
+    last_assigned_at: datetime | None
+    joined_at: datetime
+
+
+class TeamMembershipPage(SQLModel):
+    team_id: uuid.UUID
+    team_version: int
+    items: list[TeamMembershipPublic]
+    next_cursor: str | None = None
+
+
+class TeamMembershipUpsertRequest(StrictRequestModel):
+    is_available: bool
+    expected_team_version: int = Field(ge=1)
+
+
+class TeamMembershipMutationResponse(SQLModel):
+    membership: TeamMembershipPublic | None
+    removed_user_id: uuid.UUID | None
+    team_version: int
 
 
 class ErrorDetail(SQLModel):

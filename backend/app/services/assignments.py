@@ -29,6 +29,7 @@ from app.models import (
     Notification,
     RejectAssignmentRequest,
     ReopenTicketRequest,
+    Team,
     TeamMembership,
     Ticket,
     TicketMutationResponse,
@@ -84,7 +85,12 @@ def read_dispatch_candidates(
             code="TICKET_NOT_FOUND",
             message="The ticket does not exist.",
         )
-    if ticket.status not in ("PENDING_ASSIGNMENT", "ASSIGNED", "IN_PROGRESS"):
+    team = session.get(Team, ticket.team_id)
+    if (
+        team is None
+        or not team.is_active
+        or ticket.status not in ("PENDING_ASSIGNMENT", "ASSIGNED", "IN_PROGRESS")
+    ):
         return DispatchCandidateListResponse(
             ticket_id=ticket.id,
             team_id=ticket.team_id,

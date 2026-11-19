@@ -12,6 +12,10 @@ from tests.utils.user import create_random_user
 from tests.utils.utils import random_email, random_lower_string
 
 
+def _idempotency_key() -> str:
+    return str(uuid.uuid4())
+
+
 def test_get_users_superuser_me(
     client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
@@ -46,10 +50,17 @@ def test_create_user_new_email(
     ):
         username = random_email()
         password = random_lower_string()
-        data = {"email": username, "password": password}
+        data = {
+            "email": username,
+            "password": password,
+            "roles": ["SUBMITTER"],
+        }
         r = client.post(
-            f"{settings.API_V1_STR}/users/",
-            headers=superuser_token_headers,
+            f"{settings.API_V1_STR}/users",
+            headers={
+                **superuser_token_headers,
+                "Idempotency-Key": _idempotency_key(),
+            },
             json=data,
         )
         assert 200 <= r.status_code < 300
@@ -86,7 +97,7 @@ def test_get_non_existing_user_as_superuser(
         headers=superuser_token_headers,
     )
     assert r.status_code == 404
-    assert r.json() == {"detail": "User not found"}
+    assert r.json()["error"]["code"] == "USER_NOT_FOUND"
 
 
 def test_get_existing_user_current_user(client: TestClient, db: Session) -> None:
@@ -109,11 +120,8 @@ def test_get_existing_user_current_user(client: TestClient, db: Session) -> None
         f"{settings.API_V1_STR}/users/{user_id}",
         headers=headers,
     )
-    assert 200 <= r.status_code < 300
-    api_user = r.json()
-    existing_user = crud.get_user_by_email(session=db, email=username)
-    assert existing_user
-    assert existing_user.email == api_user["email"]
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "ROLE_REQUIRED"
 
 
 def test_get_existing_user_permissions_error(
@@ -128,7 +136,7 @@ def test_get_existing_user_permissions_error(
         headers=normal_user_token_headers,
     )
     assert r.status_code == 403
-    assert r.json() == {"detail": "The user doesn't have enough privileges"}
+    assert r.json()["error"]["code"] == "ROLE_REQUIRED"
 
 
 def test_get_non_existing_user_permissions_error(
@@ -142,7 +150,7 @@ def test_get_non_existing_user_permissions_error(
         headers=normal_user_token_headers,
     )
     assert r.status_code == 403
-    assert r.json() == {"detail": "The user doesn't have enough privileges"}
+    assert r.json()["error"]["code"] == "ROLE_REQUIRED"
 
 
 def test_create_user_existing_username(
@@ -153,14 +161,22 @@ def test_create_user_existing_username(
     password = random_lower_string()
     user_in = UserCreate(email=username, password=password)
     crud.create_user(session=db, user_create=user_in)
-    data = {"email": username, "password": password}
+    data = {
+        "email": username,
+        "password": password,
+        "roles": ["SUBMITTER"],
+    }
     r = client.post(
-        f"{settings.API_V1_STR}/users/",
-        headers=superuser_token_headers,
+        f"{settings.API_V1_STR}/users",
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": _idempotency_key(),
+        },
         json=data,
     )
     created_user = r.json()
-    assert r.status_code == 400
+    assert r.status_code == 409
+    assert created_user["error"]["code"] == "EMAIL_ALREADY_EXISTS"
     assert "_id" not in created_user
 
 
@@ -191,12 +207,11 @@ def test_retrieve_users(
     user_in2 = UserCreate(email=username2, password=password2)
     crud.create_user(session=db, user_create=user_in2)
 
-    r = client.get(f"{settings.API_V1_STR}/users/", headers=superuser_token_headers)
+    r = client.get(f"{settings.API_V1_STR}/users", headers=superuser_token_headers)
     all_users = r.json()
 
-    assert len(all_users["data"]) > 1
-    assert "count" in all_users
-    for item in all_users["data"]:
+    assert len(all_users["items"]) > 1
+    for item in all_users["items"]:
         assert "email" in item
 
 
@@ -205,10 +220,21 @@ def test_update_user_me(
 ) -> None:
     full_name = "Updated Name"
     email = random_email()
-    data = {"full_name": full_name, "email": email}
-    r = client.patch(
+    current = client.get(
         f"{settings.API_V1_STR}/users/me",
         headers=normal_user_token_headers,
+    ).json()
+    data = {
+        "full_name": full_name,
+        "email": email,
+        "expected_user_version": current["version"],
+    }
+    r = client.patch(
+        f"{settings.API_V1_STR}/users/me",
+        headers={
+            **normal_user_token_headers,
+            "Idempotency-Key": _idempotency_key(),
+        },
         json=data,
     )
     assert r.status_code == 200
@@ -289,14 +315,24 @@ def test_update_user_me_email_exists(
     user_in = UserCreate(email=username, password=password)
     user = crud.create_user(session=db, user_create=user_in)
 
-    data = {"email": user.email}
-    r = client.patch(
+    current = client.get(
         f"{settings.API_V1_STR}/users/me",
         headers=normal_user_token_headers,
+    ).json()
+    data = {
+        "email": user.email,
+        "expected_user_version": current["version"],
+    }
+    r = client.patch(
+        f"{settings.API_V1_STR}/users/me",
+        headers={
+            **normal_user_token_headers,
+            "Idempotency-Key": _idempotency_key(),
+        },
         json=data,
     )
     assert r.status_code == 409
-    assert r.json()["detail"] == "User with this email already exists"
+    assert r.json()["error"]["code"] == "EMAIL_ALREADY_EXISTS"
 
 
 def test_update_password_me_same_password_error(
@@ -359,10 +395,16 @@ def test_update_user(
     user_in = UserCreate(email=username, password=password)
     user = crud.create_user(session=db, user_create=user_in)
 
-    data = {"full_name": "Updated_full_name"}
+    data = {
+        "full_name": "Updated_full_name",
+        "expected_user_version": user.version,
+    }
     r = client.patch(
         f"{settings.API_V1_STR}/users/{user.id}",
-        headers=superuser_token_headers,
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": _idempotency_key(),
+        },
         json=data,
     )
     assert r.status_code == 200
@@ -380,14 +422,20 @@ def test_update_user(
 def test_update_user_not_exists(
     client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
-    data = {"full_name": "Updated_full_name"}
+    data = {
+        "full_name": "Updated_full_name",
+        "expected_user_version": 1,
+    }
     r = client.patch(
         f"{settings.API_V1_STR}/users/{uuid.uuid4()}",
-        headers=superuser_token_headers,
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": _idempotency_key(),
+        },
         json=data,
     )
     assert r.status_code == 404
-    assert r.json()["detail"] == "The user with this id does not exist in the system"
+    assert r.json()["error"]["code"] == "USER_NOT_FOUND"
 
 
 def test_update_user_email_exists(
@@ -403,14 +451,20 @@ def test_update_user_email_exists(
     user_in2 = UserCreate(email=username2, password=password2)
     user2 = crud.create_user(session=db, user_create=user_in2)
 
-    data = {"email": user2.email}
+    data = {
+        "email": user2.email,
+        "expected_user_version": user.version,
+    }
     r = client.patch(
         f"{settings.API_V1_STR}/users/{user.id}",
-        headers=superuser_token_headers,
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": _idempotency_key(),
+        },
         json=data,
     )
     assert r.status_code == 409
-    assert r.json()["detail"] == "User with this email already exists"
+    assert r.json()["error"]["code"] == "EMAIL_ALREADY_EXISTS"
 
 
 def test_delete_user_me(client: TestClient, db: Session) -> None:
