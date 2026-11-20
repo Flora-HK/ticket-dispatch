@@ -5,9 +5,245 @@ export type ClientOptions = {
 };
 
 /**
- * Body_login-login_access_token
+ * AcceptAssignmentRequest
  */
-export type Body_login_login_access_token = {
+export type AcceptAssignmentRequest = {
+    /**
+     * Expected Ticket Version
+     */
+    expected_ticket_version: number;
+    /**
+     * Expected Assignment Version
+     */
+    expected_assignment_version: number;
+};
+
+/**
+ * ActiveAssignmentResponse
+ */
+export type ActiveAssignmentResponse = {
+    /**
+     * Ticket Id
+     */
+    ticket_id: string;
+    assignment: AssignmentPublic | null;
+};
+
+/**
+ * AssignmentPage
+ */
+export type AssignmentPage = {
+    /**
+     * Items
+     */
+    items: Array<AssignmentPublic>;
+    /**
+     * Next Cursor
+     */
+    next_cursor?: string | null;
+};
+
+/**
+ * AssignmentPublic
+ */
+export type AssignmentPublic = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Ticket Id
+     */
+    ticket_id: string;
+    /**
+     * Handler Id
+     */
+    handler_id: string;
+    handler: UserSummary;
+    /**
+     * Assigned By Id
+     */
+    assigned_by_id: string;
+    assigned_by: UserSummary | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Dispatch Mode
+     */
+    dispatch_mode: string;
+    /**
+     * Strategy Code
+     */
+    strategy_code: string;
+    /**
+     * Strategy Version
+     */
+    strategy_version: string;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Completion Note
+     */
+    completion_note: string | null;
+    /**
+     * Assigned At
+     */
+    assigned_at: string;
+    /**
+     * Responded At
+     */
+    responded_at: string | null;
+    /**
+     * Finished At
+     */
+    finished_at: string | null;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+export type AssignmentStrategyCode = 'MANUAL' | 'LEAST_OPEN_TICKET';
+
+export type AuditAction = 'TICKET_CREATED' | 'TICKET_UPDATED' | 'COMMENT_CREATED' | 'ASSIGNMENT_CREATED' | 'ASSIGNMENT_ACCEPTED' | 'ASSIGNMENT_REJECTED' | 'ASSIGNMENT_COMPLETED' | 'ASSIGNMENT_SUPERSEDED' | 'TICKET_COMPLETED' | 'TICKET_CLOSED' | 'TICKET_REOPENED' | 'USER_ROLES_CHANGED' | 'USER_STATUS_CHANGED' | 'TEAM_MEMBER_CHANGED' | 'AUTO_ASSIGN_FAILED';
+
+export type AuditActorType = 'USER' | 'SYSTEM';
+
+/**
+ * AuditDetail
+ *
+ * 审计公开详情只允许契约列出的受控字段，避免 JSONB 透传敏感内容。
+ */
+export type AuditDetail = {
+    /**
+     * Changed Fields
+     */
+    changed_fields?: Array<string> | null;
+    previous_status?: TicketStatus | null;
+    next_status?: TicketStatus | null;
+    strategy_code?: AssignmentStrategyCode | null;
+    /**
+     * Strategy Version
+     */
+    strategy_version?: string | null;
+    /**
+     * Candidate Count
+     */
+    candidate_count?: number | null;
+    /**
+     * Selected Handler Id
+     */
+    selected_handler_id?: string | null;
+    /**
+     * Role Codes
+     */
+    role_codes?: Array<RoleCode> | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+export type AuditEntityType = 'TICKET' | 'ASSIGNMENT' | 'USER' | 'USER_ROLE' | 'TEAM' | 'TEAM_MEMBERSHIP';
+
+/**
+ * AuditLogPage
+ */
+export type AuditLogPage = {
+    /**
+     * Items
+     */
+    items: Array<AuditLogPublic>;
+    /**
+     * Next Cursor
+     */
+    next_cursor?: string | null;
+};
+
+/**
+ * AuditLogPublic
+ */
+export type AuditLogPublic = {
+    /**
+     * Id
+     */
+    id: number;
+    actor: UserSummary | null;
+    actor_type: AuditActorType;
+    action: AuditAction;
+    entity_type: AuditEntityType;
+    /**
+     * Entity Id
+     */
+    entity_id: string | null;
+    /**
+     * Entity Key
+     */
+    entity_key: {
+        [key: string]: string;
+    } | null;
+    /**
+     * Ticket Id
+     */
+    ticket_id: string | null;
+    before_state: StateSnapshot | null;
+    after_state: StateSnapshot | null;
+    outcome: AuditOutcome;
+    /**
+     * Error Code
+     */
+    error_code: string | null;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    detail: AuditDetail;
+};
+
+export type AuditOutcome = 'SUCCESS' | 'FAILED';
+
+/**
+ * AutoDispatchRequest
+ */
+export type AutoDispatchRequest = {
+    /**
+     * Mode
+     */
+    mode: 'AUTO';
+    /**
+     * Strategy
+     */
+    strategy: 'LEAST_OPEN_TICKET';
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Expected Ticket Version
+     */
+    expected_ticket_version: number;
+    /**
+     * Expected Assignment Id
+     */
+    expected_assignment_id?: string | null;
+    /**
+     * Expected Assignment Version
+     */
+    expected_assignment_version?: number | null;
+};
+
+/**
+ * Body_auth-login_access_token
+ */
+export type Body_auth_login_access_token = {
     /**
      * Grant Type
      */
@@ -35,59 +271,753 @@ export type Body_login_login_access_token = {
 };
 
 /**
- * HTTPValidationError
+ * CandidateRankingEntry
  */
-export type HTTPValidationError = {
+export type CandidateRankingEntry = {
     /**
-     * Detail
+     * Rank
      */
-    detail?: Array<ValidationError>;
+    rank: number;
+    /**
+     * Handler Id
+     */
+    handler_id: string;
+    /**
+     * Open Ticket Count
+     */
+    open_ticket_count: number;
+    /**
+     * Last Assigned At
+     */
+    last_assigned_at: string | null;
+    /**
+     * Selected
+     */
+    selected: boolean;
 };
 
 /**
- * ItemCreate
+ * CloseTicketRequest
  */
-export type ItemCreate = {
+export type CloseTicketRequest = {
     /**
-     * Title
+     * Resolution Note
      */
-    title: string;
+    resolution_note?: string | null;
     /**
-     * Description
+     * Expected Ticket Version
      */
-    description?: string | null;
+    expected_ticket_version: number;
 };
 
 /**
- * ItemPublic
+ * CommentCreateRequest
  */
-export type ItemPublic = {
+export type CommentCreateRequest = {
     /**
-     * Title
+     * Body
      */
-    title: string;
+    body: string;
     /**
-     * Description
+     * Expected Ticket Version
      */
-    description?: string | null;
+    expected_ticket_version: number;
+};
+
+/**
+ * CommentPage
+ */
+export type CommentPage = {
+    /**
+     * Items
+     */
+    items: Array<CommentPublic>;
+    /**
+     * Next Cursor
+     */
+    next_cursor?: string | null;
+};
+
+/**
+ * CommentPublic
+ */
+export type CommentPublic = {
     /**
      * Id
      */
     id: string;
     /**
-     * Owner Id
+     * Ticket Id
      */
-    owner_id: string;
+    ticket_id: string;
+    author: UserSummary;
+    /**
+     * Body
+     */
+    body: string;
     /**
      * Created At
      */
-    created_at?: string | null;
+    created_at: string;
 };
 
 /**
- * ItemUpdate
+ * CompleteAssignmentRequest
  */
-export type ItemUpdate = {
+export type CompleteAssignmentRequest = {
+    /**
+     * Completion Note
+     */
+    completion_note: string;
+    /**
+     * Expected Ticket Version
+     */
+    expected_ticket_version: number;
+    /**
+     * Expected Assignment Version
+     */
+    expected_assignment_version: number;
+};
+
+/**
+ * DispatchCandidateListResponse
+ */
+export type DispatchCandidateListResponse = {
+    /**
+     * Ticket Id
+     */
+    ticket_id: string;
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Items
+     */
+    items: Array<DispatchCandidatePublic>;
+    /**
+     * Candidate Count
+     */
+    candidate_count: number;
+};
+
+/**
+ * DispatchCandidatePublic
+ *
+ * 候选预览展示处理人资格与负载，不替代正式派发时的锁内重算。
+ */
+export type DispatchCandidatePublic = {
+    /**
+     * Handler Id
+     */
+    handler_id: string;
+    handler: UserSummary;
+    /**
+     * Open Ticket Count
+     */
+    open_ticket_count: number;
+    /**
+     * Last Assigned At
+     */
+    last_assigned_at: string | null;
+    /**
+     * Rank
+     */
+    rank: number;
+};
+
+/**
+ * DispatchExplanation
+ */
+export type DispatchExplanation = {
+    /**
+     * Candidate Count
+     */
+    candidate_count: number;
+    /**
+     * Selected Handler Id
+     */
+    selected_handler_id: string;
+    /**
+     * Selected Open Ticket Count
+     */
+    selected_open_ticket_count: number;
+    /**
+     * Ranked Candidates
+     */
+    ranked_candidates: Array<CandidateRankingEntry>;
+};
+
+/**
+ * DispatchResponse
+ */
+export type DispatchResponse = {
+    ticket: TicketStatePublic;
+    assignment: AssignmentPublic;
+    /**
+     * Superseded Assignment Id
+     */
+    superseded_assignment_id: string | null;
+    explanation: DispatchExplanation;
+};
+
+/**
+ * ErrorDetail
+ *
+ * 统一错误中的稳定业务码、可展示消息和请求追踪 ID。
+ */
+export type ErrorDetail = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    details?: ErrorDetails | null;
+};
+
+/**
+ * ErrorDetails
+ *
+ * 统一错误详情只暴露可行动字段，不放原始请求体或敏感文本。
+ */
+export type ErrorDetails = {
+    /**
+     * Ticket Id
+     */
+    ticket_id?: string | null;
+    /**
+     * Assignment Id
+     */
+    assignment_id?: string | null;
+    /**
+     * Expected Ticket Version
+     */
+    expected_ticket_version?: number | null;
+    /**
+     * Actual Ticket Version
+     */
+    actual_ticket_version?: number | null;
+    /**
+     * Expected Assignment Version
+     */
+    expected_assignment_version?: number | null;
+    /**
+     * Actual Assignment Version
+     */
+    actual_assignment_version?: number | null;
+    ticket_status?: TicketStatus | null;
+    /**
+     * Candidate Count
+     */
+    candidate_count?: number | null;
+    /**
+     * Assignment Changed
+     */
+    assignment_changed?: boolean | null;
+    /**
+     * Fields
+     */
+    fields?: Array<FieldViolation> | null;
+};
+
+/**
+ * ErrorResponse
+ */
+export type ErrorResponse = {
+    error: ErrorDetail;
+};
+
+/**
+ * FieldViolation
+ */
+export type FieldViolation = {
+    /**
+     * Loc
+     */
+    loc: Array<string | number>;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Type
+     */
+    type: string;
+};
+
+/**
+ * HealthResponse
+ */
+export type HealthResponse = {
+    /**
+     * Status
+     */
+    status: 'ok';
+    /**
+     * Service
+     */
+    service: string;
+};
+
+/**
+ * ManualDispatchRequest
+ */
+export type ManualDispatchRequest = {
+    /**
+     * Mode
+     */
+    mode: 'MANUAL';
+    /**
+     * Handler Id
+     */
+    handler_id: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Expected Ticket Version
+     */
+    expected_ticket_version: number;
+    /**
+     * Expected Assignment Id
+     */
+    expected_assignment_id?: string | null;
+    /**
+     * Expected Assignment Version
+     */
+    expected_assignment_version?: number | null;
+};
+
+/**
+ * NotificationPage
+ */
+export type NotificationPage = {
+    /**
+     * Items
+     */
+    items: Array<NotificationPublic>;
+    /**
+     * Next Cursor
+     */
+    next_cursor?: string | null;
+};
+
+/**
+ * NotificationPublic
+ *
+ * 通知公开模型不包含 recipient_id、payload 或下一版预留的 read_at。
+ */
+export type NotificationPublic = {
+    /**
+     * Id
+     */
+    id: string;
+    notification_type: NotificationType;
+    /**
+     * Ticket Id
+     */
+    ticket_id: string;
+    /**
+     * Assignment Id
+     */
+    assignment_id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+export type NotificationType = 'ASSIGNMENT_RECEIVED';
+
+/**
+ * RejectAssignmentRequest
+ */
+export type RejectAssignmentRequest = {
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Expected Ticket Version
+     */
+    expected_ticket_version: number;
+    /**
+     * Expected Assignment Version
+     */
+    expected_assignment_version: number;
+};
+
+/**
+ * ReopenTicketRequest
+ */
+export type ReopenTicketRequest = {
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Expected Ticket Version
+     */
+    expected_ticket_version: number;
+};
+
+export type RoleCode = 'SUBMITTER' | 'DISPATCHER' | 'HANDLER' | 'ADMIN';
+
+/**
+ * RoleSetReplaceRequest
+ */
+export type RoleSetReplaceRequest = {
+    /**
+     * Roles
+     */
+    roles: Array<RoleCode>;
+    /**
+     * Expected User Version
+     */
+    expected_user_version: number;
+};
+
+/**
+ * StateSnapshot
+ */
+export type StateSnapshot = {
+    status: TicketStatus;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * TeamCreateRequest
+ */
+export type TeamCreateRequest = {
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * TeamMembershipMutationResponse
+ */
+export type TeamMembershipMutationResponse = {
+    membership: TeamMembershipPublic | null;
+    /**
+     * Removed User Id
+     */
+    removed_user_id: string | null;
+    /**
+     * Team Version
+     */
+    team_version: number;
+};
+
+/**
+ * TeamMembershipPage
+ */
+export type TeamMembershipPage = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Team Version
+     */
+    team_version: number;
+    /**
+     * Items
+     */
+    items: Array<TeamMembershipPublic>;
+    /**
+     * Next Cursor
+     */
+    next_cursor?: string | null;
+};
+
+/**
+ * TeamMembershipPublic
+ */
+export type TeamMembershipPublic = {
+    /**
+     * Id
+     */
+    id: string;
+    user: UserSummary;
+    /**
+     * Is Available
+     */
+    is_available: boolean;
+    /**
+     * Last Assigned At
+     */
+    last_assigned_at: string | null;
+    /**
+     * Joined At
+     */
+    joined_at: string;
+};
+
+/**
+ * TeamMembershipUpsertRequest
+ */
+export type TeamMembershipUpsertRequest = {
+    /**
+     * Is Available
+     */
+    is_available: boolean;
+    /**
+     * Expected Team Version
+     */
+    expected_team_version: number;
+};
+
+/**
+ * TeamPage
+ *
+ * Team 查询使用 opaque cursor，避免偏移分页在数据变化时跳过记录。
+ */
+export type TeamPage = {
+    /**
+     * Items
+     */
+    items: Array<TeamPublic>;
+    /**
+     * Next Cursor
+     */
+    next_cursor?: string | null;
+};
+
+/**
+ * TeamPublic
+ *
+ * Team 的稳定公开表示，version 用于后续成员和启停的乐观锁。
+ */
+export type TeamPublic = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * TeamSummary
+ */
+export type TeamSummary = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * TeamUpdateRequest
+ */
+export type TeamUpdateRequest = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Is Active
+     */
+    is_active?: boolean | null;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+};
+
+export type TicketAction = 'EDIT' | 'DISPATCH' | 'COMMENT' | 'ACCEPT' | 'REJECT' | 'COMPLETE' | 'CLOSE' | 'REOPEN';
+
+/**
+ * TicketCreateRequest
+ */
+export type TicketCreateRequest = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description: string;
+};
+
+/**
+ * TicketDetailPublic
+ */
+export type TicketDetailPublic = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Team Id
+     */
+    team_id: string;
+    team: TeamSummary;
+    /**
+     * Submitter Id
+     */
+    submitter_id: string;
+    submitter: UserSummary;
+    /**
+     * Title
+     */
+    title: string;
+    status: TicketStatus;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Description
+     */
+    description: string;
+    active_assignment: AssignmentPublic | null;
+    /**
+     * Allowed Actions
+     */
+    allowed_actions: Array<TicketAction>;
+};
+
+/**
+ * TicketMutationResponse
+ */
+export type TicketMutationResponse = {
+    ticket: TicketStatePublic;
+    changed_assignment: AssignmentPublic | null;
+    /**
+     * Superseded Assignment Id
+     */
+    superseded_assignment_id: string | null;
+};
+
+/**
+ * TicketPage
+ */
+export type TicketPage = {
+    /**
+     * Items
+     */
+    items: Array<TicketSummaryPublic>;
+    /**
+     * Next Cursor
+     */
+    next_cursor?: string | null;
+};
+
+/**
+ * TicketStatePublic
+ */
+export type TicketStatePublic = {
+    /**
+     * Id
+     */
+    id: string;
+    status: TicketStatus;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+export type TicketStatus = 'PENDING_ASSIGNMENT' | 'ASSIGNED' | 'IN_PROGRESS' | 'PENDING_CONFIRMATION' | 'CLOSED';
+
+/**
+ * TicketSummaryPublic
+ */
+export type TicketSummaryPublic = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Team Id
+     */
+    team_id: string;
+    team: TeamSummary;
+    /**
+     * Submitter Id
+     */
+    submitter_id: string;
+    submitter: UserSummary;
+    /**
+     * Title
+     */
+    title: string;
+    status: TicketStatus;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * TicketUpdateRequest
+ */
+export type TicketUpdateRequest = {
     /**
      * Title
      */
@@ -96,72 +1026,80 @@ export type ItemUpdate = {
      * Description
      */
     description?: string | null;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
 };
 
 /**
- * ItemsPublic
+ * TimelineEventPage
  */
-export type ItemsPublic = {
+export type TimelineEventPage = {
     /**
-     * Data
+     * Items
      */
-    data: Array<ItemPublic>;
+    items: Array<TimelineEventPublic>;
     /**
-     * Count
+     * Next Cursor
      */
-    count: number;
+    next_cursor?: string | null;
 };
 
 /**
- * Message
+ * TimelineEventPublic
  */
-export type Message = {
+export type TimelineEventPublic = {
     /**
-     * Message
+     * Id
      */
-    message: string;
+    id: number;
+    event_type: TimelineEventType;
+    actor: UserSummary | null;
+    /**
+     * Ticket Id
+     */
+    ticket_id: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Occurred At
+     */
+    occurred_at: string;
+    metadata: TimelineMetadata;
+};
+
+export type TimelineEventType = 'TICKET_CREATED' | 'COMMENT_CREATED' | 'ASSIGNMENT_CREATED' | 'ASSIGNMENT_ACCEPTED' | 'ASSIGNMENT_REJECTED' | 'ASSIGNMENT_COMPLETED' | 'ASSIGNMENT_SUPERSEDED' | 'TICKET_COMPLETED' | 'TICKET_CLOSED' | 'TICKET_REOPENED';
+
+/**
+ * TimelineMetadata
+ *
+ * 业务时间线只展示状态、派发定位和受控说明，不复用原始审计 detail。
+ */
+export type TimelineMetadata = {
+    previous_status?: TicketStatus | null;
+    next_status?: TicketStatus | null;
+    /**
+     * Assignment Id
+     */
+    assignment_id?: string | null;
+    /**
+     * Handler Id
+     */
+    handler_id?: string | null;
+    strategy_code?: AssignmentStrategyCode | null;
+    /**
+     * Note
+     */
+    note?: string | null;
 };
 
 /**
- * NewPassword
+ * TokenResponse
  */
-export type NewPassword = {
-    /**
-     * Token
-     */
-    token: string;
-    /**
-     * New Password
-     */
-    new_password: string;
-};
-
-/**
- * PrivateUserCreate
- */
-export type PrivateUserCreate = {
-    /**
-     * Email
-     */
-    email: string;
-    /**
-     * Password
-     */
-    password: string;
-    /**
-     * Full Name
-     */
-    full_name: string;
-    /**
-     * Is Verified
-     */
-    is_verified?: boolean;
-};
-
-/**
- * Token
- */
-export type Token = {
+export type TokenResponse = {
     /**
      * Access Token
      */
@@ -169,73 +1107,97 @@ export type Token = {
     /**
      * Token Type
      */
-    token_type?: string;
+    token_type?: 'bearer';
 };
 
 /**
- * UpdatePassword
+ * UserAdminUpdateRequest
  */
-export type UpdatePassword = {
-    /**
-     * Current Password
-     */
-    current_password: string;
-    /**
-     * New Password
-     */
-    new_password: string;
-};
-
-/**
- * UserCreate
- */
-export type UserCreate = {
+export type UserAdminUpdateRequest = {
     /**
      * Email
      */
-    email: string;
-    /**
-     * Is Active
-     */
-    is_active?: boolean;
-    /**
-     * Is Superuser
-     */
-    is_superuser?: boolean;
+    email?: string | null;
     /**
      * Full Name
      */
     full_name?: string | null;
     /**
+     * Is Active
+     */
+    is_active?: boolean | null;
+    /**
      * Password
      */
-    password: string;
+    password?: null;
+    /**
+     * Expected User Version
+     */
+    expected_user_version: number;
+};
+
+/**
+ * UserCreateRequest
+ */
+export type UserCreateRequest = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Full Name
+     */
+    full_name?: string | null;
+    /**
+     * Roles
+     */
+    roles: Array<RoleCode>;
+};
+
+/**
+ * UserPage
+ */
+export type UserPage = {
+    /**
+     * Items
+     */
+    items: Array<UserPublic>;
+    /**
+     * Next Cursor
+     */
+    next_cursor?: string | null;
 };
 
 /**
  * UserPublic
+ *
+ * 用户公开信息，角色在每次请求时从数据库加载。
  */
 export type UserPublic = {
+    /**
+     * Id
+     */
+    id: string;
     /**
      * Email
      */
     email: string;
     /**
-     * Is Active
-     */
-    is_active?: boolean;
-    /**
-     * Is Superuser
-     */
-    is_superuser?: boolean;
-    /**
      * Full Name
      */
     full_name?: string | null;
     /**
-     * Id
+     * Is Active
      */
-    id: string;
+    is_active: boolean;
+    /**
+     * Roles
+     */
+    roles: Array<RoleCode>;
+    /**
+     * Version
+     */
+    version: number;
     /**
      * Created At
      */
@@ -243,9 +1205,75 @@ export type UserPublic = {
 };
 
 /**
- * UserRegister
+ * UserSelfUpdateRequest
  */
-export type UserRegister = {
+export type UserSelfUpdateRequest = {
+    /**
+     * Email
+     */
+    email?: string | null;
+    /**
+     * Full Name
+     */
+    full_name?: string | null;
+    /**
+     * Expected User Version
+     */
+    expected_user_version: number;
+};
+
+/**
+ * UserSummary
+ */
+export type UserSummary = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Full Name
+     */
+    full_name?: string | null;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+};
+
+/**
+ * UserAdminUpdateRequest
+ */
+export type UserAdminUpdateRequestWritable = {
+    /**
+     * Email
+     */
+    email?: string | null;
+    /**
+     * Full Name
+     */
+    full_name?: string | null;
+    /**
+     * Is Active
+     */
+    is_active?: boolean | null;
+    /**
+     * Password
+     */
+    password?: string | null;
+    /**
+     * Expected User Version
+     */
+    expected_user_version: number;
+};
+
+/**
+ * UserCreateRequest
+ */
+export type UserCreateRequestWritable = {
     /**
      * Email
      */
@@ -258,237 +1286,90 @@ export type UserRegister = {
      * Full Name
      */
     full_name?: string | null;
+    /**
+     * Roles
+     */
+    roles: Array<RoleCode>;
 };
 
-/**
- * UserUpdate
- */
-export type UserUpdate = {
-    /**
-     * Email
-     */
-    email?: string | null;
-    /**
-     * Is Active
-     */
-    is_active?: boolean | null;
-    /**
-     * Is Superuser
-     */
-    is_superuser?: boolean | null;
-    /**
-     * Full Name
-     */
-    full_name?: string | null;
-    /**
-     * Password
-     */
-    password?: string | null;
-};
-
-/**
- * UserUpdateMe
- */
-export type UserUpdateMe = {
-    /**
-     * Full Name
-     */
-    full_name?: string | null;
-    /**
-     * Email
-     */
-    email?: string | null;
-};
-
-/**
- * UsersPublic
- */
-export type UsersPublic = {
-    /**
-     * Data
-     */
-    data: Array<UserPublic>;
-    /**
-     * Count
-     */
-    count: number;
-};
-
-/**
- * ValidationError
- */
-export type ValidationError = {
-    /**
-     * Location
-     */
-    loc: Array<string | number>;
-    /**
-     * Message
-     */
-    msg: string;
-    /**
-     * Error Type
-     */
-    type: string;
-    /**
-     * Input
-     */
-    input?: unknown;
-    /**
-     * Context
-     */
-    ctx?: {
-        [key: string]: unknown;
-    };
-};
-
-export type loginLoginAccessTokenData = {
-    body: Body_login_login_access_token;
+export type authLoginAccessTokenData = {
+    body: Body_auth_login_access_token;
     path?: never;
     query?: never;
     url: '/api/v1/login/access-token';
 };
 
-export type loginLoginAccessTokenErrors = {
+export type authLoginAccessTokenErrors = {
     /**
-     * Validation Error
+     * Authentication required or token invalid.
      */
-    422: HTTPValidationError;
-};
-
-export type loginLoginAccessTokenError = loginLoginAccessTokenErrors[keyof loginLoginAccessTokenErrors];
-
-export type loginLoginAccessTokenResponses = {
+    401: ErrorResponse;
     /**
-     * Successful Response
+     * The authenticated user cannot perform this operation.
      */
-    200: Token;
+    403: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
 };
 
-export type loginLoginAccessTokenResponse = loginLoginAccessTokenResponses[keyof loginLoginAccessTokenResponses];
+export type authLoginAccessTokenError = authLoginAccessTokenErrors[keyof authLoginAccessTokenErrors];
 
-export type loginTestTokenData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/login/test-token';
-};
-
-export type loginTestTokenResponses = {
+export type authLoginAccessTokenResponses = {
     /**
      * Successful Response
      */
-    200: UserPublic;
+    200: TokenResponse;
 };
 
-export type loginTestTokenResponse = loginTestTokenResponses[keyof loginTestTokenResponses];
-
-export type loginRecoverPasswordData = {
-    body?: never;
-    path: {
-        /**
-         * Email
-         */
-        email: string;
-    };
-    query?: never;
-    url: '/api/v1/password-recovery/{email}';
-};
-
-export type loginRecoverPasswordErrors = {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-};
-
-export type loginRecoverPasswordError = loginRecoverPasswordErrors[keyof loginRecoverPasswordErrors];
-
-export type loginRecoverPasswordResponses = {
-    /**
-     * Successful Response
-     */
-    200: Message;
-};
-
-export type loginRecoverPasswordResponse = loginRecoverPasswordResponses[keyof loginRecoverPasswordResponses];
-
-export type loginResetPasswordData = {
-    body: NewPassword;
-    path?: never;
-    query?: never;
-    url: '/api/v1/reset-password/';
-};
-
-export type loginResetPasswordErrors = {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-};
-
-export type loginResetPasswordError = loginResetPasswordErrors[keyof loginResetPasswordErrors];
-
-export type loginResetPasswordResponses = {
-    /**
-     * Successful Response
-     */
-    200: Message;
-};
-
-export type loginResetPasswordResponse = loginResetPasswordResponses[keyof loginResetPasswordResponses];
-
-export type loginRecoverPasswordHtmlContentData = {
-    body?: never;
-    path: {
-        /**
-         * Email
-         */
-        email: string;
-    };
-    query?: never;
-    url: '/api/v1/password-recovery-html-content/{email}';
-};
-
-export type loginRecoverPasswordHtmlContentErrors = {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-};
-
-export type loginRecoverPasswordHtmlContentError = loginRecoverPasswordHtmlContentErrors[keyof loginRecoverPasswordHtmlContentErrors];
-
-export type loginRecoverPasswordHtmlContentResponses = {
-    /**
-     * Successful Response
-     */
-    200: string;
-};
-
-export type loginRecoverPasswordHtmlContentResponse = loginRecoverPasswordHtmlContentResponses[keyof loginRecoverPasswordHtmlContentResponses];
+export type authLoginAccessTokenResponse = authLoginAccessTokenResponses[keyof authLoginAccessTokenResponses];
 
 export type usersReadUsersData = {
     body?: never;
     path?: never;
     query?: {
         /**
-         * Skip
+         * Cursor
          */
-        skip?: number;
+        cursor?: string | null;
         /**
          * Limit
          */
         limit?: number;
+        /**
+         * Is Active
+         */
+        is_active?: boolean | null;
+        /**
+         * Role
+         */
+        role?: string | null;
     };
-    url: '/api/v1/users/';
+    url: '/api/v1/users';
 };
 
 export type usersReadUsersErrors = {
     /**
-     * Validation Error
+     * Authentication required or token invalid.
      */
-    422: HTTPValidationError;
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
 };
 
 export type usersReadUsersError = usersReadUsersErrors[keyof usersReadUsersErrors];
@@ -497,23 +1378,45 @@ export type usersReadUsersResponses = {
     /**
      * Successful Response
      */
-    200: UsersPublic;
+    200: UserPage;
 };
 
 export type usersReadUsersResponse = usersReadUsersResponses[keyof usersReadUsersResponses];
 
 export type usersCreateUserData = {
-    body: UserCreate;
+    body: UserCreateRequestWritable;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
     path?: never;
     query?: never;
-    url: '/api/v1/users/';
+    url: '/api/v1/users';
 };
 
 export type usersCreateUserErrors = {
     /**
-     * Validation Error
+     * Authentication required or token invalid.
      */
-    422: HTTPValidationError;
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
 };
 
 export type usersCreateUserError = usersCreateUserErrors[keyof usersCreateUserErrors];
@@ -522,26 +1425,10 @@ export type usersCreateUserResponses = {
     /**
      * Successful Response
      */
-    200: UserPublic;
+    201: UserPublic;
 };
 
 export type usersCreateUserResponse = usersCreateUserResponses[keyof usersCreateUserResponses];
-
-export type usersDeleteUserMeData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/users/me';
-};
-
-export type usersDeleteUserMeResponses = {
-    /**
-     * Successful Response
-     */
-    200: Message;
-};
-
-export type usersDeleteUserMeResponse = usersDeleteUserMeResponses[keyof usersDeleteUserMeResponses];
 
 export type usersReadUserMeData = {
     body?: never;
@@ -549,6 +1436,31 @@ export type usersReadUserMeData = {
     query?: never;
     url: '/api/v1/users/me';
 };
+
+export type usersReadUserMeErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type usersReadUserMeError = usersReadUserMeErrors[keyof usersReadUserMeErrors];
 
 export type usersReadUserMeResponses = {
     /**
@@ -560,7 +1472,13 @@ export type usersReadUserMeResponses = {
 export type usersReadUserMeResponse = usersReadUserMeResponses[keyof usersReadUserMeResponses];
 
 export type usersUpdateUserMeData = {
-    body: UserUpdateMe;
+    body: UserSelfUpdateRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/users/me';
@@ -568,9 +1486,25 @@ export type usersUpdateUserMeData = {
 
 export type usersUpdateUserMeErrors = {
     /**
-     * Validation Error
+     * Authentication required or token invalid.
      */
-    422: HTTPValidationError;
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
 };
 
 export type usersUpdateUserMeError = usersUpdateUserMeErrors[keyof usersUpdateUserMeErrors];
@@ -583,86 +1517,6 @@ export type usersUpdateUserMeResponses = {
 };
 
 export type usersUpdateUserMeResponse = usersUpdateUserMeResponses[keyof usersUpdateUserMeResponses];
-
-export type usersUpdatePasswordMeData = {
-    body: UpdatePassword;
-    path?: never;
-    query?: never;
-    url: '/api/v1/users/me/password';
-};
-
-export type usersUpdatePasswordMeErrors = {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-};
-
-export type usersUpdatePasswordMeError = usersUpdatePasswordMeErrors[keyof usersUpdatePasswordMeErrors];
-
-export type usersUpdatePasswordMeResponses = {
-    /**
-     * Successful Response
-     */
-    200: Message;
-};
-
-export type usersUpdatePasswordMeResponse = usersUpdatePasswordMeResponses[keyof usersUpdatePasswordMeResponses];
-
-export type usersRegisterUserData = {
-    body: UserRegister;
-    path?: never;
-    query?: never;
-    url: '/api/v1/users/signup';
-};
-
-export type usersRegisterUserErrors = {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-};
-
-export type usersRegisterUserError = usersRegisterUserErrors[keyof usersRegisterUserErrors];
-
-export type usersRegisterUserResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserPublic;
-};
-
-export type usersRegisterUserResponse = usersRegisterUserResponses[keyof usersRegisterUserResponses];
-
-export type usersDeleteUserData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/v1/users/{user_id}';
-};
-
-export type usersDeleteUserErrors = {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-};
-
-export type usersDeleteUserError = usersDeleteUserErrors[keyof usersDeleteUserErrors];
-
-export type usersDeleteUserResponses = {
-    /**
-     * Successful Response
-     */
-    200: Message;
-};
-
-export type usersDeleteUserResponse = usersDeleteUserResponses[keyof usersDeleteUserResponses];
 
 export type usersReadUserByIdData = {
     body?: never;
@@ -678,9 +1532,25 @@ export type usersReadUserByIdData = {
 
 export type usersReadUserByIdErrors = {
     /**
-     * Validation Error
+     * Authentication required or token invalid.
      */
-    422: HTTPValidationError;
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
 };
 
 export type usersReadUserByIdError = usersReadUserByIdErrors[keyof usersReadUserByIdErrors];
@@ -695,7 +1565,13 @@ export type usersReadUserByIdResponses = {
 export type usersReadUserByIdResponse = usersReadUserByIdResponses[keyof usersReadUserByIdResponses];
 
 export type usersUpdateUserData = {
-    body: UserUpdate;
+    body: UserAdminUpdateRequestWritable;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
     path: {
         /**
          * User Id
@@ -708,9 +1584,25 @@ export type usersUpdateUserData = {
 
 export type usersUpdateUserErrors = {
     /**
-     * Validation Error
+     * Authentication required or token invalid.
      */
-    422: HTTPValidationError;
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
 };
 
 export type usersUpdateUserError = usersUpdateUserErrors[keyof usersUpdateUserErrors];
@@ -724,224 +1616,1527 @@ export type usersUpdateUserResponses = {
 
 export type usersUpdateUserResponse = usersUpdateUserResponses[keyof usersUpdateUserResponses];
 
-export type utilsTestEmailData = {
-    body?: never;
-    path?: never;
-    query: {
+export type usersReplaceRolesData = {
+    body: RoleSetReplaceRequest;
+    headers?: {
         /**
-         * Email To
+         * Idempotency-Key
          */
-        email_to: string;
+        'Idempotency-Key'?: string | null;
     };
-    url: '/api/v1/utils/test-email/';
-};
-
-export type utilsTestEmailErrors = {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-};
-
-export type utilsTestEmailError = utilsTestEmailErrors[keyof utilsTestEmailErrors];
-
-export type utilsTestEmailResponses = {
-    /**
-     * Successful Response
-     */
-    201: Message;
-};
-
-export type utilsTestEmailResponse = utilsTestEmailResponses[keyof utilsTestEmailResponses];
-
-export type utilsHealthCheckData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/utils/health-check/';
-};
-
-export type utilsHealthCheckResponses = {
-    /**
-     * Response Utils-Health Check
-     *
-     * Successful Response
-     */
-    200: boolean;
-};
-
-export type utilsHealthCheckResponse = utilsHealthCheckResponses[keyof utilsHealthCheckResponses];
-
-export type itemsReadItemsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Skip
-         */
-        skip?: number;
-        /**
-         * Limit
-         */
-        limit?: number;
-    };
-    url: '/api/v1/items/';
-};
-
-export type itemsReadItemsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-};
-
-export type itemsReadItemsError = itemsReadItemsErrors[keyof itemsReadItemsErrors];
-
-export type itemsReadItemsResponses = {
-    /**
-     * Successful Response
-     */
-    200: ItemsPublic;
-};
-
-export type itemsReadItemsResponse = itemsReadItemsResponses[keyof itemsReadItemsResponses];
-
-export type itemsCreateItemData = {
-    body: ItemCreate;
-    path?: never;
-    query?: never;
-    url: '/api/v1/items/';
-};
-
-export type itemsCreateItemErrors = {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-};
-
-export type itemsCreateItemError = itemsCreateItemErrors[keyof itemsCreateItemErrors];
-
-export type itemsCreateItemResponses = {
-    /**
-     * Successful Response
-     */
-    200: ItemPublic;
-};
-
-export type itemsCreateItemResponse = itemsCreateItemResponses[keyof itemsCreateItemResponses];
-
-export type itemsDeleteItemData = {
-    body?: never;
     path: {
         /**
-         * Id
+         * User Id
          */
-        id: string;
+        user_id: string;
     };
     query?: never;
-    url: '/api/v1/items/{id}';
+    url: '/api/v1/users/{user_id}/roles';
 };
 
-export type itemsDeleteItemErrors = {
+export type usersReplaceRolesErrors = {
     /**
-     * Validation Error
+     * Authentication required or token invalid.
      */
-    422: HTTPValidationError;
-};
-
-export type itemsDeleteItemError = itemsDeleteItemErrors[keyof itemsDeleteItemErrors];
-
-export type itemsDeleteItemResponses = {
+    401: ErrorResponse;
     /**
-     * Successful Response
+     * The authenticated user cannot perform this operation.
      */
-    200: Message;
-};
-
-export type itemsDeleteItemResponse = itemsDeleteItemResponses[keyof itemsDeleteItemResponses];
-
-export type itemsReadItemData = {
-    body?: never;
-    path: {
-        /**
-         * Id
-         */
-        id: string;
-    };
-    query?: never;
-    url: '/api/v1/items/{id}';
-};
-
-export type itemsReadItemErrors = {
+    403: ErrorResponse;
     /**
-     * Validation Error
+     * The resource does not exist or is not visible.
      */
-    422: HTTPValidationError;
-};
-
-export type itemsReadItemError = itemsReadItemErrors[keyof itemsReadItemErrors];
-
-export type itemsReadItemResponses = {
+    404: ErrorResponse;
     /**
-     * Successful Response
+     * The resource changed or the operation conflicts.
      */
-    200: ItemPublic;
-};
-
-export type itemsReadItemResponse = itemsReadItemResponses[keyof itemsReadItemResponses];
-
-export type itemsUpdateItemData = {
-    body: ItemUpdate;
-    path: {
-        /**
-         * Id
-         */
-        id: string;
-    };
-    query?: never;
-    url: '/api/v1/items/{id}';
-};
-
-export type itemsUpdateItemErrors = {
+    409: ErrorResponse;
     /**
-     * Validation Error
+     * Request validation failed.
      */
-    422: HTTPValidationError;
+    422: ErrorResponse;
 };
 
-export type itemsUpdateItemError = itemsUpdateItemErrors[keyof itemsUpdateItemErrors];
+export type usersReplaceRolesError = usersReplaceRolesErrors[keyof usersReplaceRolesErrors];
 
-export type itemsUpdateItemResponses = {
-    /**
-     * Successful Response
-     */
-    200: ItemPublic;
-};
-
-export type itemsUpdateItemResponse = itemsUpdateItemResponses[keyof itemsUpdateItemResponses];
-
-export type privateCreateUserData = {
-    body: PrivateUserCreate;
-    path?: never;
-    query?: never;
-    url: '/api/v1/private/users/';
-};
-
-export type privateCreateUserErrors = {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-};
-
-export type privateCreateUserError = privateCreateUserErrors[keyof privateCreateUserErrors];
-
-export type privateCreateUserResponses = {
+export type usersReplaceRolesResponses = {
     /**
      * Successful Response
      */
     200: UserPublic;
 };
 
-export type privateCreateUserResponse = privateCreateUserResponses[keyof privateCreateUserResponses];
+export type usersReplaceRolesResponse = usersReplaceRolesResponses[keyof usersReplaceRolesResponses];
+
+export type teamsReadTeamsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Include Inactive
+         */
+        include_inactive?: boolean;
+    };
+    url: '/api/v1/teams';
+};
+
+export type teamsReadTeamsErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type teamsReadTeamsError = teamsReadTeamsErrors[keyof teamsReadTeamsErrors];
+
+export type teamsReadTeamsResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamPage;
+};
+
+export type teamsReadTeamsResponse = teamsReadTeamsResponses[keyof teamsReadTeamsResponses];
+
+export type teamsCreateTeamData = {
+    body: TeamCreateRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/teams';
+};
+
+export type teamsCreateTeamErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type teamsCreateTeamError = teamsCreateTeamErrors[keyof teamsCreateTeamErrors];
+
+export type teamsCreateTeamResponses = {
+    /**
+     * Successful Response
+     */
+    201: TeamPublic;
+};
+
+export type teamsCreateTeamResponse = teamsCreateTeamResponses[keyof teamsCreateTeamResponses];
+
+export type teamsReadTeamData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/api/v1/teams/{team_id}';
+};
+
+export type teamsReadTeamErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type teamsReadTeamError = teamsReadTeamErrors[keyof teamsReadTeamErrors];
+
+export type teamsReadTeamResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamPublic;
+};
+
+export type teamsReadTeamResponse = teamsReadTeamResponses[keyof teamsReadTeamResponses];
+
+export type teamsUpdateTeamData = {
+    body: TeamUpdateRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/api/v1/teams/{team_id}';
+};
+
+export type teamsUpdateTeamErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type teamsUpdateTeamError = teamsUpdateTeamErrors[keyof teamsUpdateTeamErrors];
+
+export type teamsUpdateTeamResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamPublic;
+};
+
+export type teamsUpdateTeamResponse = teamsUpdateTeamResponses[keyof teamsUpdateTeamResponses];
+
+export type teamsReadTeamMembersData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: {
+        /**
+         * Is Available
+         */
+        is_available?: boolean | null;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/teams/{team_id}/members';
+};
+
+export type teamsReadTeamMembersErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type teamsReadTeamMembersError = teamsReadTeamMembersErrors[keyof teamsReadTeamMembersErrors];
+
+export type teamsReadTeamMembersResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamMembershipPage;
+};
+
+export type teamsReadTeamMembersResponse = teamsReadTeamMembersResponses[keyof teamsReadTeamMembersResponses];
+
+export type teamsDeleteMemberData = {
+    body?: never;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query: {
+        /**
+         * Expected Team Version
+         */
+        expected_team_version: number;
+    };
+    url: '/api/v1/teams/{team_id}/members/{user_id}';
+};
+
+export type teamsDeleteMemberErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type teamsDeleteMemberError = teamsDeleteMemberErrors[keyof teamsDeleteMemberErrors];
+
+export type teamsDeleteMemberResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamMembershipMutationResponse;
+};
+
+export type teamsDeleteMemberResponse = teamsDeleteMemberResponses[keyof teamsDeleteMemberResponses];
+
+export type teamsUpsertMemberData = {
+    body: TeamMembershipUpsertRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/teams/{team_id}/members/{user_id}';
+};
+
+export type teamsUpsertMemberErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type teamsUpsertMemberError = teamsUpsertMemberErrors[keyof teamsUpsertMemberErrors];
+
+export type teamsUpsertMemberResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamMembershipMutationResponse;
+};
+
+export type teamsUpsertMemberResponse = teamsUpsertMemberResponses[keyof teamsUpsertMemberResponses];
+
+export type ticketsReadTicketsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Team Id
+         */
+        team_id?: string | null;
+        /**
+         * Status
+         */
+        status?: string | null;
+        /**
+         * Submitter Id
+         */
+        submitter_id?: string | null;
+        /**
+         * Assigned To Me
+         */
+        assigned_to_me?: boolean;
+        /**
+         * Created From
+         */
+        created_from?: string | null;
+        /**
+         * Created To
+         */
+        created_to?: string | null;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Sort
+         */
+        sort?: string;
+    };
+    url: '/api/v1/tickets';
+};
+
+export type ticketsReadTicketsErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type ticketsReadTicketsError = ticketsReadTicketsErrors[keyof ticketsReadTicketsErrors];
+
+export type ticketsReadTicketsResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketPage;
+};
+
+export type ticketsReadTicketsResponse = ticketsReadTicketsResponses[keyof ticketsReadTicketsResponses];
+
+export type ticketsCreateTicketData = {
+    body: TicketCreateRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/tickets';
+};
+
+export type ticketsCreateTicketErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type ticketsCreateTicketError = ticketsCreateTicketErrors[keyof ticketsCreateTicketErrors];
+
+export type ticketsCreateTicketResponses = {
+    /**
+     * Successful Response
+     */
+    201: TicketDetailPublic;
+};
+
+export type ticketsCreateTicketResponse = ticketsCreateTicketResponses[keyof ticketsCreateTicketResponses];
+
+export type ticketsReadTicketData = {
+    body?: never;
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: never;
+    url: '/api/v1/tickets/{ticket_id}';
+};
+
+export type ticketsReadTicketErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type ticketsReadTicketError = ticketsReadTicketErrors[keyof ticketsReadTicketErrors];
+
+export type ticketsReadTicketResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketDetailPublic;
+};
+
+export type ticketsReadTicketResponse = ticketsReadTicketResponses[keyof ticketsReadTicketResponses];
+
+export type ticketsUpdateTicketData = {
+    body: TicketUpdateRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: never;
+    url: '/api/v1/tickets/{ticket_id}';
+};
+
+export type ticketsUpdateTicketErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type ticketsUpdateTicketError = ticketsUpdateTicketErrors[keyof ticketsUpdateTicketErrors];
+
+export type ticketsUpdateTicketResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketDetailPublic;
+};
+
+export type ticketsUpdateTicketResponse = ticketsUpdateTicketResponses[keyof ticketsUpdateTicketResponses];
+
+export type ticketsReadTimelineData = {
+    body?: never;
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: {
+        /**
+         * Event Type
+         */
+        event_type?: string | null;
+        /**
+         * Created From
+         */
+        created_from?: string | null;
+        /**
+         * Created To
+         */
+        created_to?: string | null;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Sort
+         */
+        sort?: string;
+    };
+    url: '/api/v1/tickets/{ticket_id}/timeline';
+};
+
+export type ticketsReadTimelineErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type ticketsReadTimelineError = ticketsReadTimelineErrors[keyof ticketsReadTimelineErrors];
+
+export type ticketsReadTimelineResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimelineEventPage;
+};
+
+export type ticketsReadTimelineResponse = ticketsReadTimelineResponses[keyof ticketsReadTimelineResponses];
+
+export type ticketsCloseTicketData = {
+    body: CloseTicketRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: never;
+    url: '/api/v1/tickets/{ticket_id}/actions/close';
+};
+
+export type ticketsCloseTicketErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type ticketsCloseTicketError = ticketsCloseTicketErrors[keyof ticketsCloseTicketErrors];
+
+export type ticketsCloseTicketResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketMutationResponse;
+};
+
+export type ticketsCloseTicketResponse = ticketsCloseTicketResponses[keyof ticketsCloseTicketResponses];
+
+export type ticketsReopenTicketData = {
+    body: ReopenTicketRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: never;
+    url: '/api/v1/tickets/{ticket_id}/actions/reopen';
+};
+
+export type ticketsReopenTicketErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type ticketsReopenTicketError = ticketsReopenTicketErrors[keyof ticketsReopenTicketErrors];
+
+export type ticketsReopenTicketResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketMutationResponse;
+};
+
+export type ticketsReopenTicketResponse = ticketsReopenTicketResponses[keyof ticketsReopenTicketResponses];
+
+export type commentsReadCommentsData = {
+    body?: never;
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: {
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/tickets/{ticket_id}/comments';
+};
+
+export type commentsReadCommentsErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type commentsReadCommentsError = commentsReadCommentsErrors[keyof commentsReadCommentsErrors];
+
+export type commentsReadCommentsResponses = {
+    /**
+     * Successful Response
+     */
+    200: CommentPage;
+};
+
+export type commentsReadCommentsResponse = commentsReadCommentsResponses[keyof commentsReadCommentsResponses];
+
+export type commentsCreateCommentData = {
+    body: CommentCreateRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: never;
+    url: '/api/v1/tickets/{ticket_id}/comments';
+};
+
+export type commentsCreateCommentErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type commentsCreateCommentError = commentsCreateCommentErrors[keyof commentsCreateCommentErrors];
+
+export type commentsCreateCommentResponses = {
+    /**
+     * Successful Response
+     */
+    201: CommentPublic;
+};
+
+export type commentsCreateCommentResponse = commentsCreateCommentResponses[keyof commentsCreateCommentResponses];
+
+export type assignmentsGetAssignmentHistoryData = {
+    body?: never;
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: {
+        /**
+         * Status
+         */
+        status?: string | null;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/tickets/{ticket_id}/assignments';
+};
+
+export type assignmentsGetAssignmentHistoryErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type assignmentsGetAssignmentHistoryError = assignmentsGetAssignmentHistoryErrors[keyof assignmentsGetAssignmentHistoryErrors];
+
+export type assignmentsGetAssignmentHistoryResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssignmentPage;
+};
+
+export type assignmentsGetAssignmentHistoryResponse = assignmentsGetAssignmentHistoryResponses[keyof assignmentsGetAssignmentHistoryResponses];
+
+export type assignmentsGetActiveAssignmentData = {
+    body?: never;
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: never;
+    url: '/api/v1/tickets/{ticket_id}/assignment';
+};
+
+export type assignmentsGetActiveAssignmentErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type assignmentsGetActiveAssignmentError = assignmentsGetActiveAssignmentErrors[keyof assignmentsGetActiveAssignmentErrors];
+
+export type assignmentsGetActiveAssignmentResponses = {
+    /**
+     * Successful Response
+     */
+    200: ActiveAssignmentResponse;
+};
+
+export type assignmentsGetActiveAssignmentResponse = assignmentsGetActiveAssignmentResponses[keyof assignmentsGetActiveAssignmentResponses];
+
+export type assignmentsGetDispatchCandidatesData = {
+    body?: never;
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: never;
+    url: '/api/v1/tickets/{ticket_id}/dispatch-candidates';
+};
+
+export type assignmentsGetDispatchCandidatesErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type assignmentsGetDispatchCandidatesError = assignmentsGetDispatchCandidatesErrors[keyof assignmentsGetDispatchCandidatesErrors];
+
+export type assignmentsGetDispatchCandidatesResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchCandidateListResponse;
+};
+
+export type assignmentsGetDispatchCandidatesResponse = assignmentsGetDispatchCandidatesResponses[keyof assignmentsGetDispatchCandidatesResponses];
+
+export type assignmentsDispatchTicketData = {
+    /**
+     * Dispatch In
+     */
+    body: ({
+        mode: 'MANUAL';
+    } & ManualDispatchRequest) | ({
+        mode: 'AUTO';
+    } & AutoDispatchRequest);
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: string;
+    };
+    query?: never;
+    url: '/api/v1/tickets/{ticket_id}/dispatch';
+};
+
+export type assignmentsDispatchTicketErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type assignmentsDispatchTicketError = assignmentsDispatchTicketErrors[keyof assignmentsDispatchTicketErrors];
+
+export type assignmentsDispatchTicketResponses = {
+    /**
+     * Successful Response
+     */
+    201: DispatchResponse;
+};
+
+export type assignmentsDispatchTicketResponse = assignmentsDispatchTicketResponses[keyof assignmentsDispatchTicketResponses];
+
+export type assignmentsAcceptCurrentAssignmentData = {
+    body: AcceptAssignmentRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Assignment Id
+         */
+        assignment_id: string;
+    };
+    query?: never;
+    url: '/api/v1/assignments/{assignment_id}/accept';
+};
+
+export type assignmentsAcceptCurrentAssignmentErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type assignmentsAcceptCurrentAssignmentError = assignmentsAcceptCurrentAssignmentErrors[keyof assignmentsAcceptCurrentAssignmentErrors];
+
+export type assignmentsAcceptCurrentAssignmentResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketMutationResponse;
+};
+
+export type assignmentsAcceptCurrentAssignmentResponse = assignmentsAcceptCurrentAssignmentResponses[keyof assignmentsAcceptCurrentAssignmentResponses];
+
+export type assignmentsCompleteCurrentAssignmentData = {
+    body: CompleteAssignmentRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Assignment Id
+         */
+        assignment_id: string;
+    };
+    query?: never;
+    url: '/api/v1/assignments/{assignment_id}/complete';
+};
+
+export type assignmentsCompleteCurrentAssignmentErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type assignmentsCompleteCurrentAssignmentError = assignmentsCompleteCurrentAssignmentErrors[keyof assignmentsCompleteCurrentAssignmentErrors];
+
+export type assignmentsCompleteCurrentAssignmentResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketMutationResponse;
+};
+
+export type assignmentsCompleteCurrentAssignmentResponse = assignmentsCompleteCurrentAssignmentResponses[keyof assignmentsCompleteCurrentAssignmentResponses];
+
+export type assignmentsRejectCurrentAssignmentData = {
+    body: RejectAssignmentRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Assignment Id
+         */
+        assignment_id: string;
+    };
+    query?: never;
+    url: '/api/v1/assignments/{assignment_id}/reject';
+};
+
+export type assignmentsRejectCurrentAssignmentErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * The resource changed or the operation conflicts.
+     */
+    409: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type assignmentsRejectCurrentAssignmentError = assignmentsRejectCurrentAssignmentErrors[keyof assignmentsRejectCurrentAssignmentErrors];
+
+export type assignmentsRejectCurrentAssignmentResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketMutationResponse;
+};
+
+export type assignmentsRejectCurrentAssignmentResponse = assignmentsRejectCurrentAssignmentResponses[keyof assignmentsRejectCurrentAssignmentResponses];
+
+export type auditReadAuditLogsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Entity Type
+         */
+        entity_type?: string | null;
+        /**
+         * Entity Id
+         */
+        entity_id?: string | null;
+        /**
+         * Entity Key
+         */
+        entity_key?: string | null;
+        /**
+         * Ticket Id
+         */
+        ticket_id?: string | null;
+        /**
+         * Actor User Id
+         */
+        actor_user_id?: string | null;
+        /**
+         * Action
+         */
+        action?: string | null;
+        /**
+         * Outcome
+         */
+        outcome?: string | null;
+        /**
+         * Created From
+         */
+        created_from?: string | null;
+        /**
+         * Created To
+         */
+        created_to?: string | null;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Sort
+         */
+        sort?: string;
+    };
+    url: '/api/v1/admin/audit-logs';
+};
+
+export type auditReadAuditLogsErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type auditReadAuditLogsError = auditReadAuditLogsErrors[keyof auditReadAuditLogsErrors];
+
+export type auditReadAuditLogsResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuditLogPage;
+};
+
+export type auditReadAuditLogsResponse = auditReadAuditLogsResponses[keyof auditReadAuditLogsResponses];
+
+export type notificationsReadNotificationsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Notification Type
+         */
+        notification_type?: string | null;
+        /**
+         * Created From
+         */
+        created_from?: string | null;
+        /**
+         * Created To
+         */
+        created_to?: string | null;
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Sort
+         */
+        sort?: string;
+    };
+    url: '/api/v1/notifications';
+};
+
+export type notificationsReadNotificationsErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type notificationsReadNotificationsError = notificationsReadNotificationsErrors[keyof notificationsReadNotificationsErrors];
+
+export type notificationsReadNotificationsResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationPage;
+};
+
+export type notificationsReadNotificationsResponse = notificationsReadNotificationsResponses[keyof notificationsReadNotificationsResponses];
+
+export type notificationsReadNotificationDetailData = {
+    body?: never;
+    path: {
+        /**
+         * Notification Id
+         */
+        notification_id: string;
+    };
+    query?: never;
+    url: '/api/v1/notifications/{notification_id}';
+};
+
+export type notificationsReadNotificationDetailErrors = {
+    /**
+     * Authentication required or token invalid.
+     */
+    401: ErrorResponse;
+    /**
+     * The authenticated user cannot perform this operation.
+     */
+    403: ErrorResponse;
+    /**
+     * The resource does not exist or is not visible.
+     */
+    404: ErrorResponse;
+    /**
+     * Request validation failed.
+     */
+    422: ErrorResponse;
+};
+
+export type notificationsReadNotificationDetailError = notificationsReadNotificationDetailErrors[keyof notificationsReadNotificationDetailErrors];
+
+export type notificationsReadNotificationDetailResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationPublic;
+};
+
+export type notificationsReadNotificationDetailResponse = notificationsReadNotificationDetailResponses[keyof notificationsReadNotificationDetailResponses];
+
+export type healthReadLivenessData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/health/live';
+};
+
+export type healthReadLivenessResponses = {
+    /**
+     * Successful Response
+     */
+    200: HealthResponse;
+};
+
+export type healthReadLivenessResponse = healthReadLivenessResponses[keyof healthReadLivenessResponses];
+
+export type healthReadReadinessData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/health/ready';
+};
+
+export type healthReadReadinessErrors = {
+    /**
+     * Database is unavailable.
+     */
+    503: ErrorResponse;
+};
+
+export type healthReadReadinessError = healthReadReadinessErrors[keyof healthReadReadinessErrors];
+
+export type healthReadReadinessResponses = {
+    /**
+     * Successful Response
+     */
+    200: HealthResponse;
+};
+
+export type healthReadReadinessResponse = healthReadReadinessResponses[keyof healthReadReadinessResponses];

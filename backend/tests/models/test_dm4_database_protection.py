@@ -155,5 +155,5 @@ def test_dm4_dm1_to_dm4_tables_remain_available(clean_db: Session) -> None:
         "audit_log",
         "notification",
         "idempotency_record",
-        "item",
     } <= table_names
+    assert "item" not in table_names

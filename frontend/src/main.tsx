@@ -22,13 +22,29 @@ client.setConfig({
 const handleApiError = (error: Error) => {
   if (
     error instanceof AxiosError &&
-    [401, 403].includes(error.response?.status ?? 0)
+    error.response?.status === 401 &&
+    localStorage.getItem("access_token") !== null &&
+    window.location.pathname !== "/login"
   ) {
     localStorage.removeItem("access_token")
     window.location.href = "/login"
   }
 }
+const shouldRetryRequest = (failureCount: number, error: Error) => {
+  if (error instanceof AxiosError) {
+    const status = error.response?.status
+    if (status && status >= 400 && status < 500) {
+      return false
+    }
+  }
+  return failureCount < 2
+}
 const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: shouldRetryRequest,
+    },
+  },
   queryCache: new QueryCache({
     onError: handleApiError,
   }),

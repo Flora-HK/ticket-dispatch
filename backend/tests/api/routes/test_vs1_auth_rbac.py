@@ -21,7 +21,7 @@ from app.core.seed import (
     VS1_TEAM_NAME,
     seed_vs1_demo_data,
 )
-from app.models import Item, Team, TeamMembership, User, UserRole
+from app.models import Team, TeamMembership, User, UserRole
 
 pytestmark = pytest.mark.usefixtures("vs1_seeded_db")
 
@@ -110,20 +110,23 @@ def test_vs1_inactive_user_is_denied_before_write(
         user.is_active = False
         session.add(user)
         session.commit()
-        before_count = len(session.exec(select(Item)).all())
+        original_name = user.full_name
 
-    response = client.post(
-        f"{settings.API_V1_STR}/items/",
-        headers=headers,
-        json={"title": "不应创建", "description": "停用用户写入"},
+    response = client.patch(
+        f"{settings.API_V1_STR}/users/me",
+        headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+        json={
+            "full_name": "停用用户不应更新",
+            "expected_user_version": 1,
+        },
     )
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "INACTIVE_USER"
 
     with Session(engine) as session:
-        assert len(session.exec(select(Item)).all()) == before_count
         user = crud.get_user_by_email(session=session, email=VS1_SUBMITTER_EMAIL)
         assert user is not None
+        assert user.full_name == original_name
         user.is_active = True
         session.add(user)
         session.commit()
@@ -193,7 +196,7 @@ def test_vs1_seed_data_is_idempotent() -> None:
         assert len(session.exec(select(TeamMembership)).all()) == 2
 
 
-def test_vs1_public_registration_is_disabled(
+def test_vs1_public_registration_route_is_not_exposed(
     client: TestClient,
 ) -> None:
     signup = client.post(
@@ -204,8 +207,7 @@ def test_vs1_public_registration_is_disabled(
             "full_name": "Public User",
         },
     )
-    assert signup.status_code == 404
-    assert signup.json()["error"]["code"] == "REGISTRATION_DISABLED"
+    assert signup.status_code == 405
 
     private = client.post(
         f"{settings.API_V1_STR}/private/users/",

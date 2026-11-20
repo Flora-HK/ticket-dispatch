@@ -10,14 +10,14 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-export type Item = {
+export type NavigationItem = {
   icon: LucideIcon
   title: string
   path: string
 }
 
 interface MainProps {
-  items: Item[]
+  items: NavigationItem[]
 }
 
 export function Main({ items }: MainProps) {

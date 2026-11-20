@@ -1,7 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 import 'dotenv/config'
+import path from "node:path"
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173'
+const backendPython = path.resolve(
+  import.meta.dirname,
+  "../.venv/Scripts/python.exe",
+)
 
 /**
  * Read environment variables from file.
@@ -87,9 +92,17 @@ export default defineConfig({
   /* Run your local dev server before starting the tests */
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
-    : {
-        command: 'bun run dev',
-        url: baseURL,
-        reuseExistingServer: !process.env.CI,
-      },
+    : [
+        {
+          command: `"${backendPython}" -m uvicorn app.main:app --host 127.0.0.1 --port 8000`,
+          cwd: path.resolve(import.meta.dirname, "../backend"),
+          url: "http://localhost:8000/api/v1/health/live",
+          reuseExistingServer: !process.env.CI,
+        },
+        {
+          command: 'bun run dev',
+          url: baseURL,
+          reuseExistingServer: !process.env.CI,
+        },
+      ],
 });

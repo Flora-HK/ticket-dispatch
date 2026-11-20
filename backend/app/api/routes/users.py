@@ -1,8 +1,6 @@
 import uuid
-from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import col, delete
+from fastapi import APIRouter, Depends
 
 from app import crud
 from app.api.deps import (
@@ -11,13 +9,8 @@ from app.api.deps import (
     SessionDep,
     get_current_admin,
 )
-from app.core.errors import APIError
-from app.core.security import get_password_hash, verify_password
 from app.models import (
-    Item,
-    Message,
     RoleSetReplaceRequest,
-    UpdatePassword,
     User,
     UserAdminUpdateRequest,
     UserCreateRequest,
@@ -97,59 +90,12 @@ def update_user_me(
     )
 
 
-@router.patch("/me/password", response_model=Message)
-def update_password_me(
-    *, session: SessionDep, body: UpdatePassword, current_actor: CurrentActor
-) -> Any:
-    """
-    Update own password.
-    """
-    current_user = current_actor.user
-    verified, _ = verify_password(body.current_password, current_user.hashed_password)
-    if not verified:
-        raise HTTPException(status_code=400, detail="Incorrect password")
-    if body.current_password == body.new_password:
-        raise HTTPException(
-            status_code=400, detail="New password cannot be the same as the current one"
-        )
-    hashed_password = get_password_hash(body.new_password)
-    current_user.hashed_password = hashed_password
-    session.add(current_user)
-    session.commit()
-    return Message(message="Password updated successfully")
-
-
 @router.get("/me", response_model=UserPublic)
-def read_user_me(session: SessionDep, current_actor: CurrentActor) -> Any:
+def read_user_me(session: SessionDep, current_actor: CurrentActor) -> UserPublic:
     """
     Get current user.
     """
     return crud.to_user_public(session=session, user=current_actor.user)
-
-
-@router.delete("/me", response_model=Message)
-def delete_user_me(session: SessionDep, current_actor: CurrentActor) -> Any:
-    """
-    Delete own user.
-    """
-    if current_actor.has_any_role(("ADMIN",)):
-        raise HTTPException(
-            status_code=403, detail="Super users are not allowed to delete themselves"
-        )
-    session.delete(current_actor.user)
-    session.commit()
-    return Message(message="User deleted successfully")
-
-
-@router.post("/signup", include_in_schema=False)
-def register_user() -> Any:
-    """公开注册已关闭，账号统一由管理员创建。"""
-
-    raise APIError(
-        status_code=404,
-        code="REGISTRATION_DISABLED",
-        message="Public registration is disabled.",
-    )
 
 
 @router.get("/{user_id}", response_model=UserPublic)
@@ -203,24 +149,3 @@ def replace_roles(
         idempotency_key=idempotency_key,
         roles_in=roles_in,
     )
-
-
-@router.delete("/{user_id}", dependencies=[Depends(get_current_admin)])
-def delete_user(
-    session: SessionDep, current_actor: CurrentActor, user_id: uuid.UUID
-) -> Message:
-    """
-    Delete a user.
-    """
-    user = session.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if user == current_actor.user:
-        raise HTTPException(
-            status_code=403, detail="Super users are not allowed to delete themselves"
-        )
-    statement = delete(Item).where(col(Item.owner_id) == user_id)
-    session.exec(statement)
-    session.delete(user)
-    session.commit()
-    return Message(message="User deleted successfully")

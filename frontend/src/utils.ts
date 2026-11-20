@@ -1,8 +1,24 @@
 import { AxiosError } from "axios"
 
-function extractErrorMessage(err: Error): string {
+interface ApiErrorBody {
+  error?: {
+    code?: string
+    message?: string
+  }
+}
+
+function apiErrorBody(err: AxiosError<ApiErrorBody>): ApiErrorBody | undefined {
+  return err.response?.data
+}
+
+export function extractErrorMessage(err: Error): string {
   if (err instanceof AxiosError) {
-    const errDetail = (err.response?.data as any)?.detail
+    const data = apiErrorBody(err)
+    if (data?.error?.message) {
+      return data.error.message
+    }
+    const errDetail = (err.response?.data as { detail?: unknown } | undefined)
+      ?.detail
     if (Array.isArray(errDetail) && errDetail.length > 0) {
       return errDetail[0].msg
     }
@@ -12,6 +28,15 @@ function extractErrorMessage(err: Error): string {
     return err.message
   }
   return "Something went wrong."
+}
+
+export function getApiErrorCode(err: Error): string | undefined {
+  if (!(err instanceof AxiosError)) return undefined
+  return apiErrorBody(err)?.error?.code
+}
+
+export function isConflictError(err: Error): boolean {
+  return err instanceof AxiosError && err.response?.status === 409
 }
 
 export const handleError = function (this: (msg: string) => void, err: Error) {

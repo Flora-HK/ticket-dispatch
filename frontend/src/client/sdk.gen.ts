@@ -2,7 +2,7 @@
 
 import { type Client, type Options as Options2, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { itemsCreateItemData, itemsCreateItemErrors, itemsCreateItemResponses, itemsDeleteItemData, itemsDeleteItemErrors, itemsDeleteItemResponses, itemsReadItemData, itemsReadItemErrors, itemsReadItemResponses, itemsReadItemsData, itemsReadItemsErrors, itemsReadItemsResponses, itemsUpdateItemData, itemsUpdateItemErrors, itemsUpdateItemResponses, loginLoginAccessTokenData, loginLoginAccessTokenErrors, loginLoginAccessTokenResponses, loginRecoverPasswordData, loginRecoverPasswordErrors, loginRecoverPasswordHtmlContentData, loginRecoverPasswordHtmlContentErrors, loginRecoverPasswordHtmlContentResponses, loginRecoverPasswordResponses, loginResetPasswordData, loginResetPasswordErrors, loginResetPasswordResponses, loginTestTokenData, loginTestTokenResponses, privateCreateUserData, privateCreateUserErrors, privateCreateUserResponses, usersCreateUserData, usersCreateUserErrors, usersCreateUserResponses, usersDeleteUserData, usersDeleteUserErrors, usersDeleteUserMeData, usersDeleteUserMeResponses, usersDeleteUserResponses, usersReadUserByIdData, usersReadUserByIdErrors, usersReadUserByIdResponses, usersReadUserMeData, usersReadUserMeResponses, usersReadUsersData, usersReadUsersErrors, usersReadUsersResponses, usersRegisterUserData, usersRegisterUserErrors, usersRegisterUserResponses, usersUpdatePasswordMeData, usersUpdatePasswordMeErrors, usersUpdatePasswordMeResponses, usersUpdateUserData, usersUpdateUserErrors, usersUpdateUserMeData, usersUpdateUserMeErrors, usersUpdateUserMeResponses, usersUpdateUserResponses, utilsHealthCheckData, utilsHealthCheckResponses, utilsTestEmailData, utilsTestEmailErrors, utilsTestEmailResponses } from './types.gen';
+import type { assignmentsAcceptCurrentAssignmentData, assignmentsAcceptCurrentAssignmentErrors, assignmentsAcceptCurrentAssignmentResponses, assignmentsCompleteCurrentAssignmentData, assignmentsCompleteCurrentAssignmentErrors, assignmentsCompleteCurrentAssignmentResponses, assignmentsDispatchTicketData, assignmentsDispatchTicketErrors, assignmentsDispatchTicketResponses, assignmentsGetActiveAssignmentData, assignmentsGetActiveAssignmentErrors, assignmentsGetActiveAssignmentResponses, assignmentsGetAssignmentHistoryData, assignmentsGetAssignmentHistoryErrors, assignmentsGetAssignmentHistoryResponses, assignmentsGetDispatchCandidatesData, assignmentsGetDispatchCandidatesErrors, assignmentsGetDispatchCandidatesResponses, assignmentsRejectCurrentAssignmentData, assignmentsRejectCurrentAssignmentErrors, assignmentsRejectCurrentAssignmentResponses, auditReadAuditLogsData, auditReadAuditLogsErrors, auditReadAuditLogsResponses, authLoginAccessTokenData, authLoginAccessTokenErrors, authLoginAccessTokenResponses, commentsCreateCommentData, commentsCreateCommentErrors, commentsCreateCommentResponses, commentsReadCommentsData, commentsReadCommentsErrors, commentsReadCommentsResponses, healthReadLivenessData, healthReadLivenessResponses, healthReadReadinessData, healthReadReadinessErrors, healthReadReadinessResponses, notificationsReadNotificationDetailData, notificationsReadNotificationDetailErrors, notificationsReadNotificationDetailResponses, notificationsReadNotificationsData, notificationsReadNotificationsErrors, notificationsReadNotificationsResponses, teamsCreateTeamData, teamsCreateTeamErrors, teamsCreateTeamResponses, teamsDeleteMemberData, teamsDeleteMemberErrors, teamsDeleteMemberResponses, teamsReadTeamData, teamsReadTeamErrors, teamsReadTeamMembersData, teamsReadTeamMembersErrors, teamsReadTeamMembersResponses, teamsReadTeamResponses, teamsReadTeamsData, teamsReadTeamsErrors, teamsReadTeamsResponses, teamsUpdateTeamData, teamsUpdateTeamErrors, teamsUpdateTeamResponses, teamsUpsertMemberData, teamsUpsertMemberErrors, teamsUpsertMemberResponses, ticketsCloseTicketData, ticketsCloseTicketErrors, ticketsCloseTicketResponses, ticketsCreateTicketData, ticketsCreateTicketErrors, ticketsCreateTicketResponses, ticketsReadTicketData, ticketsReadTicketErrors, ticketsReadTicketResponses, ticketsReadTicketsData, ticketsReadTicketsErrors, ticketsReadTicketsResponses, ticketsReadTimelineData, ticketsReadTimelineErrors, ticketsReadTimelineResponses, ticketsReopenTicketData, ticketsReopenTicketErrors, ticketsReopenTicketResponses, ticketsUpdateTicketData, ticketsUpdateTicketErrors, ticketsUpdateTicketResponses, usersCreateUserData, usersCreateUserErrors, usersCreateUserResponses, usersReadUserByIdData, usersReadUserByIdErrors, usersReadUserByIdResponses, usersReadUserMeData, usersReadUserMeErrors, usersReadUserMeResponses, usersReadUsersData, usersReadUsersErrors, usersReadUsersResponses, usersReplaceRolesData, usersReplaceRolesErrors, usersReplaceRolesResponses, usersUpdateUserData, usersUpdateUserErrors, usersUpdateUserMeData, usersUpdateUserMeErrors, usersUpdateUserMeResponses, usersUpdateUserResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -18,14 +18,14 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
     meta?: Record<string, unknown>;
 };
 
-export class LoginService {
+export class AuthService {
     /**
      * Login Access Token
      *
-     * OAuth2 compatible token login, get an access token for future requests
+     * OAuth2 密码登录只签发短期访问令牌，权限仍从数据库实时加载。
      */
-    public static loginAccessToken<ThrowOnError extends boolean = true>(options: Options<loginLoginAccessTokenData, ThrowOnError>) {
-        return (options.client ?? client).post<loginLoginAccessTokenResponses, loginLoginAccessTokenErrors, ThrowOnError>({
+    public static loginAccessToken<ThrowOnError extends boolean = true>(options: Options<authLoginAccessTokenData, ThrowOnError>) {
+        return (options.client ?? client).post<authLoginAccessTokenResponses, authLoginAccessTokenErrors, ThrowOnError>({
             ...urlSearchParamsBodySerializer,
             responseType: 'json',
             url: '/api/v1/login/access-token',
@@ -36,91 +36,29 @@ export class LoginService {
             }
         });
     }
-    
-    /**
-     * Test Token
-     *
-     * Test access token
-     */
-    public static testToken<ThrowOnError extends boolean = true>(options?: Options<loginTestTokenData, ThrowOnError>) {
-        return (options?.client ?? client).post<loginTestTokenResponses, unknown, ThrowOnError>({
-            responseType: 'json',
-            security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/login/test-token',
-            ...options
-        });
-    }
-    
-    /**
-     * Recover Password
-     *
-     * Password Recovery
-     */
-    public static recoverPassword<ThrowOnError extends boolean = true>(options: Options<loginRecoverPasswordData, ThrowOnError>) {
-        return (options.client ?? client).post<loginRecoverPasswordResponses, loginRecoverPasswordErrors, ThrowOnError>({
-            responseType: 'json',
-            url: '/api/v1/password-recovery/{email}',
-            ...options
-        });
-    }
-    
-    /**
-     * Reset Password
-     *
-     * Reset password
-     */
-    public static resetPassword<ThrowOnError extends boolean = true>(options: Options<loginResetPasswordData, ThrowOnError>) {
-        return (options.client ?? client).post<loginResetPasswordResponses, loginResetPasswordErrors, ThrowOnError>({
-            responseType: 'json',
-            url: '/api/v1/reset-password/',
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            }
-        });
-    }
-    
-    /**
-     * Recover Password Html Content
-     *
-     * HTML Content for Password Recovery
-     */
-    public static recoverPasswordHtmlContent<ThrowOnError extends boolean = true>(options: Options<loginRecoverPasswordHtmlContentData, ThrowOnError>) {
-        return (options.client ?? client).post<loginRecoverPasswordHtmlContentResponses, loginRecoverPasswordHtmlContentErrors, ThrowOnError>({
-            responseType: 'text',
-            security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/password-recovery-html-content/{email}',
-            ...options
-        });
-    }
 }
 
 export class UsersService {
     /**
      * Read Users
-     *
-     * Retrieve users.
      */
     public static readUsers<ThrowOnError extends boolean = true>(options?: Options<usersReadUsersData, ThrowOnError>) {
         return (options?.client ?? client).get<usersReadUsersResponses, usersReadUsersErrors, ThrowOnError>({
             responseType: 'json',
             security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/users/',
+            url: '/api/v1/users',
             ...options
         });
     }
-    
+
     /**
      * Create User
-     *
-     * Create new user.
      */
     public static createUser<ThrowOnError extends boolean = true>(options: Options<usersCreateUserData, ThrowOnError>) {
         return (options.client ?? client).post<usersCreateUserResponses, usersCreateUserErrors, ThrowOnError>({
             responseType: 'json',
             security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/users/',
+            url: '/api/v1/users',
             ...options,
             headers: {
                 'Content-Type': 'application/json',
@@ -128,39 +66,25 @@ export class UsersService {
             }
         });
     }
-    
-    /**
-     * Delete User Me
-     *
-     * Delete own user.
-     */
-    public static deleteUserMe<ThrowOnError extends boolean = true>(options?: Options<usersDeleteUserMeData, ThrowOnError>) {
-        return (options?.client ?? client).delete<usersDeleteUserMeResponses, unknown, ThrowOnError>({
-            responseType: 'json',
-            security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/users/me',
-            ...options
-        });
-    }
-    
+
     /**
      * Read User Me
      *
      * Get current user.
      */
     public static readUserMe<ThrowOnError extends boolean = true>(options?: Options<usersReadUserMeData, ThrowOnError>) {
-        return (options?.client ?? client).get<usersReadUserMeResponses, unknown, ThrowOnError>({
+        return (options?.client ?? client).get<usersReadUserMeResponses, usersReadUserMeErrors, ThrowOnError>({
             responseType: 'json',
             security: [{ scheme: 'bearer', type: 'http' }],
             url: '/api/v1/users/me',
             ...options
         });
     }
-    
+
     /**
      * Update User Me
      *
-     * Update own user.
+     * 本人资料修改走版本、幂等、行锁和审计事务。
      */
     public static updateUserMe<ThrowOnError extends boolean = true>(options: Options<usersUpdateUserMeData, ThrowOnError>) {
         return (options.client ?? client).patch<usersUpdateUserMeResponses, usersUpdateUserMeErrors, ThrowOnError>({
@@ -174,60 +98,9 @@ export class UsersService {
             }
         });
     }
-    
-    /**
-     * Update Password Me
-     *
-     * Update own password.
-     */
-    public static updatePasswordMe<ThrowOnError extends boolean = true>(options: Options<usersUpdatePasswordMeData, ThrowOnError>) {
-        return (options.client ?? client).patch<usersUpdatePasswordMeResponses, usersUpdatePasswordMeErrors, ThrowOnError>({
-            responseType: 'json',
-            security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/users/me/password',
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            }
-        });
-    }
-    
-    /**
-     * Register User
-     *
-     * Create new user without the need to be logged in.
-     */
-    public static registerUser<ThrowOnError extends boolean = true>(options: Options<usersRegisterUserData, ThrowOnError>) {
-        return (options.client ?? client).post<usersRegisterUserResponses, usersRegisterUserErrors, ThrowOnError>({
-            responseType: 'json',
-            url: '/api/v1/users/signup',
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            }
-        });
-    }
-    
-    /**
-     * Delete User
-     *
-     * Delete a user.
-     */
-    public static deleteUser<ThrowOnError extends boolean = true>(options: Options<usersDeleteUserData, ThrowOnError>) {
-        return (options.client ?? client).delete<usersDeleteUserResponses, usersDeleteUserErrors, ThrowOnError>({
-            responseType: 'json',
-            security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/users/{user_id}',
-            ...options
-        });
-    }
-    
+
     /**
      * Read User By Id
-     *
-     * Get a specific user by id.
      */
     public static readUserById<ThrowOnError extends boolean = true>(options: Options<usersReadUserByIdData, ThrowOnError>) {
         return (options.client ?? client).get<usersReadUserByIdResponses, usersReadUserByIdErrors, ThrowOnError>({
@@ -237,11 +110,9 @@ export class UsersService {
             ...options
         });
     }
-    
+
     /**
      * Update User
-     *
-     * Update a user.
      */
     public static updateUser<ThrowOnError extends boolean = true>(options: Options<usersUpdateUserData, ThrowOnError>) {
         return (options.client ?? client).patch<usersUpdateUserResponses, usersUpdateUserErrors, ThrowOnError>({
@@ -255,106 +126,15 @@ export class UsersService {
             }
         });
     }
-}
 
-export class UtilsService {
     /**
-     * Test Email
-     *
-     * Test emails.
+     * Replace Roles
      */
-    public static testEmail<ThrowOnError extends boolean = true>(options: Options<utilsTestEmailData, ThrowOnError>) {
-        return (options.client ?? client).post<utilsTestEmailResponses, utilsTestEmailErrors, ThrowOnError>({
+    public static replaceRoles<ThrowOnError extends boolean = true>(options: Options<usersReplaceRolesData, ThrowOnError>) {
+        return (options.client ?? client).put<usersReplaceRolesResponses, usersReplaceRolesErrors, ThrowOnError>({
             responseType: 'json',
             security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/utils/test-email/',
-            ...options
-        });
-    }
-    
-    /**
-     * Health Check
-     */
-    public static healthCheck<ThrowOnError extends boolean = true>(options?: Options<utilsHealthCheckData, ThrowOnError>) {
-        return (options?.client ?? client).get<utilsHealthCheckResponses, unknown, ThrowOnError>({
-            responseType: 'json',
-            url: '/api/v1/utils/health-check/',
-            ...options
-        });
-    }
-}
-
-export class ItemsService {
-    /**
-     * Read Items
-     *
-     * Retrieve items.
-     */
-    public static readItems<ThrowOnError extends boolean = true>(options?: Options<itemsReadItemsData, ThrowOnError>) {
-        return (options?.client ?? client).get<itemsReadItemsResponses, itemsReadItemsErrors, ThrowOnError>({
-            responseType: 'json',
-            security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/items/',
-            ...options
-        });
-    }
-    
-    /**
-     * Create Item
-     *
-     * Create new item.
-     */
-    public static createItem<ThrowOnError extends boolean = true>(options: Options<itemsCreateItemData, ThrowOnError>) {
-        return (options.client ?? client).post<itemsCreateItemResponses, itemsCreateItemErrors, ThrowOnError>({
-            responseType: 'json',
-            security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/items/',
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            }
-        });
-    }
-    
-    /**
-     * Delete Item
-     *
-     * Delete an item.
-     */
-    public static deleteItem<ThrowOnError extends boolean = true>(options: Options<itemsDeleteItemData, ThrowOnError>) {
-        return (options.client ?? client).delete<itemsDeleteItemResponses, itemsDeleteItemErrors, ThrowOnError>({
-            responseType: 'json',
-            security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/items/{id}',
-            ...options
-        });
-    }
-    
-    /**
-     * Read Item
-     *
-     * Get item by ID.
-     */
-    public static readItem<ThrowOnError extends boolean = true>(options: Options<itemsReadItemData, ThrowOnError>) {
-        return (options.client ?? client).get<itemsReadItemResponses, itemsReadItemErrors, ThrowOnError>({
-            responseType: 'json',
-            security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/items/{id}',
-            ...options
-        });
-    }
-    
-    /**
-     * Update Item
-     *
-     * Update an item.
-     */
-    public static updateItem<ThrowOnError extends boolean = true>(options: Options<itemsUpdateItemData, ThrowOnError>) {
-        return (options.client ?? client).put<itemsUpdateItemResponses, itemsUpdateItemErrors, ThrowOnError>({
-            responseType: 'json',
-            security: [{ scheme: 'bearer', type: 'http' }],
-            url: '/api/v1/items/{id}',
+            url: '/api/v1/users/{user_id}/roles',
             ...options,
             headers: {
                 'Content-Type': 'application/json',
@@ -364,21 +144,444 @@ export class ItemsService {
     }
 }
 
-export class PrivateService {
+export class TeamsService {
     /**
-     * Create User
+     * Read Teams
      *
-     * Create a new user.
+     * 查询可建单 Team；只有 ADMIN 可以主动包含停用项。
      */
-    public static createUser<ThrowOnError extends boolean = true>(options: Options<privateCreateUserData, ThrowOnError>) {
-        return (options.client ?? client).post<privateCreateUserResponses, privateCreateUserErrors, ThrowOnError>({
+    public static readTeams<ThrowOnError extends boolean = true>(options?: Options<teamsReadTeamsData, ThrowOnError>) {
+        return (options?.client ?? client).get<teamsReadTeamsResponses, teamsReadTeamsErrors, ThrowOnError>({
             responseType: 'json',
-            url: '/api/v1/private/users/',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/teams',
+            ...options
+        });
+    }
+
+    /**
+     * Create Team
+     */
+    public static createTeam<ThrowOnError extends boolean = true>(options: Options<teamsCreateTeamData, ThrowOnError>) {
+        return (options.client ?? client).post<teamsCreateTeamResponses, teamsCreateTeamErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/teams',
             ...options,
             headers: {
                 'Content-Type': 'application/json',
                 ...options.headers
             }
+        });
+    }
+
+    /**
+     * Read Team
+     *
+     * 返回 Team 详情；非 ADMIN 不得发现已停用的 Team。
+     */
+    public static readTeam<ThrowOnError extends boolean = true>(options: Options<teamsReadTeamData, ThrowOnError>) {
+        return (options.client ?? client).get<teamsReadTeamResponses, teamsReadTeamErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/teams/{team_id}',
+            ...options
+        });
+    }
+
+    /**
+     * Update Team
+     */
+    public static updateTeam<ThrowOnError extends boolean = true>(options: Options<teamsUpdateTeamData, ThrowOnError>) {
+        return (options.client ?? client).patch<teamsUpdateTeamResponses, teamsUpdateTeamErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/teams/{team_id}',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+
+    /**
+     * Read Team Members
+     */
+    public static readTeamMembers<ThrowOnError extends boolean = true>(options: Options<teamsReadTeamMembersData, ThrowOnError>) {
+        return (options.client ?? client).get<teamsReadTeamMembersResponses, teamsReadTeamMembersErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/teams/{team_id}/members',
+            ...options
+        });
+    }
+
+    /**
+     * Delete Member
+     */
+    public static deleteMember<ThrowOnError extends boolean = true>(options: Options<teamsDeleteMemberData, ThrowOnError>) {
+        return (options.client ?? client).delete<teamsDeleteMemberResponses, teamsDeleteMemberErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/teams/{team_id}/members/{user_id}',
+            ...options
+        });
+    }
+
+    /**
+     * Upsert Member
+     */
+    public static upsertMember<ThrowOnError extends boolean = true>(options: Options<teamsUpsertMemberData, ThrowOnError>) {
+        return (options.client ?? client).put<teamsUpsertMemberResponses, teamsUpsertMemberErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/teams/{team_id}/members/{user_id}',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+}
+
+export class TicketsService {
+    /**
+     * Read Tickets
+     *
+     * 按认证 Actor 的 SQL 可见范围查询 Ticket。
+     */
+    public static readTickets<ThrowOnError extends boolean = true>(options?: Options<ticketsReadTicketsData, ThrowOnError>) {
+        return (options?.client ?? client).get<ticketsReadTicketsResponses, ticketsReadTicketsErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets',
+            ...options
+        });
+    }
+
+    /**
+     * Create Ticket
+     *
+     * 创建人由认证上下文决定，客户端不能提交状态或版本。
+     */
+    public static createTicket<ThrowOnError extends boolean = true>(options: Options<ticketsCreateTicketData, ThrowOnError>) {
+        return (options.client ?? client).post<ticketsCreateTicketResponses, ticketsCreateTicketErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+
+    /**
+     * Read Ticket
+     *
+     * 不存在与不可见统一返回 404，避免泄露资源存在性。
+     */
+    public static readTicket<ThrowOnError extends boolean = true>(options: Options<ticketsReadTicketData, ThrowOnError>) {
+        return (options.client ?? client).get<ticketsReadTicketResponses, ticketsReadTicketErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}',
+            ...options
+        });
+    }
+
+    /**
+     * Update Ticket
+     *
+     * 正文编辑只改变 ticket 自身字段，不触碰派发历史。
+     */
+    public static updateTicket<ThrowOnError extends boolean = true>(options: Options<ticketsUpdateTicketData, ThrowOnError>) {
+        return (options.client ?? client).patch<ticketsUpdateTicketResponses, ticketsUpdateTicketErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+
+    /**
+     * Read Timeline
+     *
+     * 时间线与 Ticket 详情复用同一可见性，且只输出受控业务摘要。
+     */
+    public static readTimeline<ThrowOnError extends boolean = true>(options: Options<ticketsReadTimelineData, ThrowOnError>) {
+        return (options.client ?? client).get<ticketsReadTimelineResponses, ticketsReadTimelineErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}/timeline',
+            ...options
+        });
+    }
+
+    /**
+     * Close Ticket
+     *
+     * 提交人或管理角色确认结果并关闭待确认工单。
+     */
+    public static closeTicket<ThrowOnError extends boolean = true>(options: Options<ticketsCloseTicketData, ThrowOnError>) {
+        return (options.client ?? client).post<ticketsCloseTicketResponses, ticketsCloseTicketErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}/actions/close',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+
+    /**
+     * Reopen Ticket
+     *
+     * 提交人或管理角色填写原因后重开已关闭工单。
+     */
+    public static reopenTicket<ThrowOnError extends boolean = true>(options: Options<ticketsReopenTicketData, ThrowOnError>) {
+        return (options.client ?? client).post<ticketsReopenTicketResponses, ticketsReopenTicketErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}/actions/reopen',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+}
+
+export class CommentsService {
+    /**
+     * Read Comments
+     *
+     * 拥有 Ticket 查看权限的用户可以读取公开评论时间线。
+     */
+    public static readComments<ThrowOnError extends boolean = true>(options: Options<commentsReadCommentsData, ThrowOnError>) {
+        return (options.client ?? client).get<commentsReadCommentsResponses, commentsReadCommentsErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}/comments',
+            ...options
+        });
+    }
+
+    /**
+     * Create Comment
+     *
+     * 评论写入由服务层锁 Ticket 后重新校验状态和版本。
+     */
+    public static createComment<ThrowOnError extends boolean = true>(options: Options<commentsCreateCommentData, ThrowOnError>) {
+        return (options.client ?? client).post<commentsCreateCommentResponses, commentsCreateCommentErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}/comments',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+}
+
+export class AssignmentsService {
+    /**
+     * Get Assignment History
+     *
+     * 拥有 Ticket 查看权限的用户可以读取完整派发历史。
+     */
+    public static getAssignmentHistory<ThrowOnError extends boolean = true>(options: Options<assignmentsGetAssignmentHistoryData, ThrowOnError>) {
+        return (options.client ?? client).get<assignmentsGetAssignmentHistoryResponses, assignmentsGetAssignmentHistoryErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}/assignments',
+            ...options
+        });
+    }
+
+    /**
+     * Get Active Assignment
+     *
+     * 无活动派发时返回 200 和 null，而不是把“无处理人”当成错误。
+     */
+    public static getActiveAssignment<ThrowOnError extends boolean = true>(options: Options<assignmentsGetActiveAssignmentData, ThrowOnError>) {
+        return (options.client ?? client).get<assignmentsGetActiveAssignmentResponses, assignmentsGetActiveAssignmentErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}/assignment',
+            ...options
+        });
+    }
+
+    /**
+     * Get Dispatch Candidates
+     *
+     * Dispatcher/Admin 查看候选；不可派发状态返回空名单而非状态错误。
+     */
+    public static getDispatchCandidates<ThrowOnError extends boolean = true>(options: Options<assignmentsGetDispatchCandidatesData, ThrowOnError>) {
+        return (options.client ?? client).get<assignmentsGetDispatchCandidatesResponses, assignmentsGetDispatchCandidatesErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}/dispatch-candidates',
+            ...options
+        });
+    }
+
+    /**
+     * Dispatch Ticket
+     *
+     * 人工或自动派发在 Team 与 Ticket 锁内重算候选并原子写入。
+     */
+    public static dispatchTicket<ThrowOnError extends boolean = true>(options: Options<assignmentsDispatchTicketData, ThrowOnError>) {
+        return (options.client ?? client).post<assignmentsDispatchTicketResponses, assignmentsDispatchTicketErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tickets/{ticket_id}/dispatch',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+
+    /**
+     * Accept Current Assignment
+     *
+     * 当前 Handler 接受派发，状态和版本必须与客户端看到的一致。
+     */
+    public static acceptCurrentAssignment<ThrowOnError extends boolean = true>(options: Options<assignmentsAcceptCurrentAssignmentData, ThrowOnError>) {
+        return (options.client ?? client).post<assignmentsAcceptCurrentAssignmentResponses, assignmentsAcceptCurrentAssignmentErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/assignments/{assignment_id}/accept',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+
+    /**
+     * Complete Current Assignment
+     *
+     * 当前 Handler 提交完成说明，Ticket 进入待提交人确认。
+     */
+    public static completeCurrentAssignment<ThrowOnError extends boolean = true>(options: Options<assignmentsCompleteCurrentAssignmentData, ThrowOnError>) {
+        return (options.client ?? client).post<assignmentsCompleteCurrentAssignmentResponses, assignmentsCompleteCurrentAssignmentErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/assignments/{assignment_id}/complete',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+
+    /**
+     * Reject Current Assignment
+     *
+     * 当前 Handler 拒绝派发，必须提供原因和双版本。
+     */
+    public static rejectCurrentAssignment<ThrowOnError extends boolean = true>(options: Options<assignmentsRejectCurrentAssignmentData, ThrowOnError>) {
+        return (options.client ?? client).post<assignmentsRejectCurrentAssignmentResponses, assignmentsRejectCurrentAssignmentErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/assignments/{assignment_id}/reject',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+    }
+}
+
+export class AuditService {
+    /**
+     * Read Audit Logs
+     *
+     * 原始审计只读且仅限 Admin；复合实体用 JSON entity_key 对象定位。
+     */
+    public static readAuditLogs<ThrowOnError extends boolean = true>(options?: Options<auditReadAuditLogsData, ThrowOnError>) {
+        return (options?.client ?? client).get<auditReadAuditLogsResponses, auditReadAuditLogsErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/admin/audit-logs',
+            ...options
+        });
+    }
+}
+
+export class NotificationsService {
+    /**
+     * Read Notifications
+     *
+     * 只查询当前接收人的通知，MVP 不提供已读写入或跨用户查询。
+     */
+    public static readNotifications<ThrowOnError extends boolean = true>(options?: Options<notificationsReadNotificationsData, ThrowOnError>) {
+        return (options?.client ?? client).get<notificationsReadNotificationsResponses, notificationsReadNotificationsErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/notifications',
+            ...options
+        });
+    }
+
+    /**
+     * Read Notification Detail
+     *
+     * 他人通知与不存在通知统一返回 404，避免泄露通知标识存在性。
+     */
+    public static readNotificationDetail<ThrowOnError extends boolean = true>(options: Options<notificationsReadNotificationDetailData, ThrowOnError>) {
+        return (options.client ?? client).get<notificationsReadNotificationDetailResponses, notificationsReadNotificationDetailErrors, ThrowOnError>({
+            responseType: 'json',
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/notifications/{notification_id}',
+            ...options
+        });
+    }
+}
+
+export class HealthService {
+    /**
+     * Read Liveness
+     *
+     * 进程存活检查刻意不依赖数据库，便于区分应用与基础设施故障。
+     */
+    public static readLiveness<ThrowOnError extends boolean = true>(options?: Options<healthReadLivenessData, ThrowOnError>) {
+        return (options?.client ?? client).get<healthReadLivenessResponses, unknown, ThrowOnError>({
+            responseType: 'json',
+            url: '/api/v1/health/live',
+            ...options
+        });
+    }
+
+    /**
+     * Read Readiness
+     *
+     * 数据库不可达时返回统一 503，而不是让底层驱动异常冒泡。
+     */
+    public static readReadiness<ThrowOnError extends boolean = true>(options?: Options<healthReadReadinessData, ThrowOnError>) {
+        return (options?.client ?? client).get<healthReadReadinessResponses, healthReadReadinessErrors, ThrowOnError>({
+            responseType: 'json',
+            url: '/api/v1/health/ready',
+            ...options
         });
     }
 }
