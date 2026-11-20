@@ -19,8 +19,10 @@ from app.models import (
     TicketMutationResponse,
     TicketPage,
     TicketUpdateRequest,
+    TimelineEventPage,
 )
 from app.services import tickets as ticket_service
+from app.services.activity import read_ticket_timeline
 from app.services.assignments import (
     close_ticket as close_ticket_service,
 )
@@ -94,6 +96,33 @@ def read_ticket(
         session=session,
         actor=current_actor,
         ticket_id=ticket_id,
+    )
+
+
+@router.get("/{ticket_id}/timeline", response_model=TimelineEventPage)
+def read_timeline(
+    ticket_id: uuid.UUID,
+    session: SessionDep,
+    current_actor: CurrentActor,
+    event_type: str | None = None,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+    cursor: str | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    sort: str = "created_at:asc",
+) -> TimelineEventPage:
+    """时间线与 Ticket 详情复用同一可见性，且只输出受控业务摘要。"""
+
+    return read_ticket_timeline(
+        session=session,
+        actor=current_actor,
+        ticket_id=ticket_id,
+        event_type=event_type,
+        created_from=created_from,
+        created_to=created_to,
+        cursor=cursor,
+        limit=limit,
+        sort=sort,
     )
 
 

@@ -87,6 +87,60 @@ AUDIT_ENTITY_TYPES = (
     "TEAM_MEMBERSHIP",
 )
 NOTIFICATION_TYPES = ("ASSIGNMENT_RECEIVED",)
+TIMELINE_EVENT_TYPES = (
+    "TICKET_CREATED",
+    "COMMENT_CREATED",
+    "ASSIGNMENT_CREATED",
+    "ASSIGNMENT_ACCEPTED",
+    "ASSIGNMENT_REJECTED",
+    "ASSIGNMENT_COMPLETED",
+    "ASSIGNMENT_SUPERSEDED",
+    "TICKET_COMPLETED",
+    "TICKET_CLOSED",
+    "TICKET_REOPENED",
+)
+
+type AuditActorType = Literal["USER", "SYSTEM"]
+type AuditOutcome = Literal["SUCCESS", "FAILED"]
+type AssignmentStrategyCode = Literal["MANUAL", "LEAST_OPEN_TICKET"]
+type NotificationType = Literal["ASSIGNMENT_RECEIVED"]
+type AuditAction = Literal[
+    "TICKET_CREATED",
+    "TICKET_UPDATED",
+    "COMMENT_CREATED",
+    "ASSIGNMENT_CREATED",
+    "ASSIGNMENT_ACCEPTED",
+    "ASSIGNMENT_REJECTED",
+    "ASSIGNMENT_COMPLETED",
+    "ASSIGNMENT_SUPERSEDED",
+    "TICKET_COMPLETED",
+    "TICKET_CLOSED",
+    "TICKET_REOPENED",
+    "USER_ROLES_CHANGED",
+    "USER_STATUS_CHANGED",
+    "TEAM_MEMBER_CHANGED",
+    "AUTO_ASSIGN_FAILED",
+]
+type AuditEntityType = Literal[
+    "TICKET",
+    "ASSIGNMENT",
+    "USER",
+    "USER_ROLE",
+    "TEAM",
+    "TEAM_MEMBERSHIP",
+]
+type TimelineEventType = Literal[
+    "TICKET_CREATED",
+    "COMMENT_CREATED",
+    "ASSIGNMENT_CREATED",
+    "ASSIGNMENT_ACCEPTED",
+    "ASSIGNMENT_REJECTED",
+    "ASSIGNMENT_COMPLETED",
+    "ASSIGNMENT_SUPERSEDED",
+    "TICKET_COMPLETED",
+    "TICKET_CLOSED",
+    "TICKET_REOPENED",
+]
 
 # 幂等记录只覆盖短期网络重试和重复点击，不承担永久业务去重。
 IDEMPOTENCY_RETENTION = timedelta(days=7)
@@ -334,6 +388,91 @@ class CommentPublic(SQLModel):
 
 class CommentPage(SQLModel):
     items: list[CommentPublic]
+    next_cursor: str | None = None
+
+
+class StateSnapshot(SQLModel):
+    status: TicketStatus
+    version: int
+
+
+class AuditDetail(SQLModel):
+    """审计公开详情只允许契约列出的受控字段，避免 JSONB 透传敏感内容。"""
+
+    changed_fields: list[str] | None = None
+    previous_status: TicketStatus | None = None
+    next_status: TicketStatus | None = None
+    strategy_code: AssignmentStrategyCode | None = None
+    strategy_version: str | None = None
+    candidate_count: int | None = None
+    selected_handler_id: uuid.UUID | None = None
+    role_codes: list[RoleCode] | None = None
+    note: str | None = None
+
+
+class TimelineMetadata(SQLModel):
+    """业务时间线只展示状态、派发定位和受控说明，不复用原始审计 detail。"""
+
+    previous_status: TicketStatus | None = None
+    next_status: TicketStatus | None = None
+    assignment_id: uuid.UUID | None = None
+    handler_id: uuid.UUID | None = None
+    strategy_code: AssignmentStrategyCode | None = None
+    note: str | None = None
+
+
+class AuditLogPublic(SQLModel):
+    id: int
+    actor: UserSummary | None
+    actor_type: AuditActorType
+    action: AuditAction
+    entity_type: AuditEntityType
+    entity_id: uuid.UUID | None
+    entity_key: dict[str, str] | None
+    ticket_id: uuid.UUID | None
+    before_state: StateSnapshot | None
+    after_state: StateSnapshot | None
+    outcome: AuditOutcome
+    error_code: str | None
+    request_id: uuid.UUID
+    created_at: datetime
+    detail: AuditDetail
+
+
+class AuditLogPage(SQLModel):
+    items: list[AuditLogPublic]
+    next_cursor: str | None = None
+
+
+class TimelineEventPublic(SQLModel):
+    id: int
+    event_type: TimelineEventType
+    actor: UserSummary | None
+    ticket_id: uuid.UUID
+    summary: str
+    occurred_at: datetime
+    event_metadata: TimelineMetadata = Field(serialization_alias="metadata")
+
+
+class TimelineEventPage(SQLModel):
+    items: list[TimelineEventPublic]
+    next_cursor: str | None = None
+
+
+class NotificationPublic(SQLModel):
+    """通知公开模型不包含 recipient_id、payload 或下一版预留的 read_at。"""
+
+    id: uuid.UUID
+    notification_type: NotificationType
+    ticket_id: uuid.UUID
+    assignment_id: uuid.UUID
+    title: str
+    message: str
+    created_at: datetime
+
+
+class NotificationPage(SQLModel):
+    items: list[NotificationPublic]
     next_cursor: str | None = None
 
 
