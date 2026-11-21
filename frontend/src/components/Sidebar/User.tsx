@@ -1,5 +1,7 @@
 import { ChevronsUpDown, LogOut } from "lucide-react"
 
+import type { UserPublic } from "@/client"
+import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -39,7 +41,7 @@ function UserInfo({ fullName, email }: UserInfoProps) {
   )
 }
 
-export function User({ user }: { user: any }) {
+export function User({ user }: { user: UserPublic | null | undefined }) {
   const { logout } = useAuth()
   const { isMobile } = useSidebar()
 
@@ -59,7 +61,10 @@ export function User({ user }: { user: any }) {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               data-testid="user-menu"
             >
-              <UserInfo fullName={user?.full_name} email={user?.email} />
+              <UserInfo
+                fullName={user.full_name ?? undefined}
+                email={user.email}
+              />
               <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -70,12 +75,22 @@ export function User({ user }: { user: any }) {
             sideOffset={4}
           >
             <DropdownMenuLabel className="p-0 font-normal">
-              <UserInfo fullName={user?.full_name} email={user?.email} />
+              <div className="flex flex-col gap-2">
+                <UserInfo
+                  fullName={user.full_name ?? undefined}
+                  email={user.email}
+                />
+                <div className="flex flex-wrap gap-1">
+                  {user.roles.map((role) => (
+                    <StatusBadge key={role} kind="role" value={role} />
+                  ))}
+                </div>
+              </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut />
-              Log Out
+              退出登录
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

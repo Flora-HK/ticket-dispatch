@@ -1,5 +1,4 @@
-import { Bell, Home, Ticket } from "lucide-react"
-
+import { navigationForRoles } from "@/components/app-shell/app-navigation"
 import { SidebarAppearance } from "@/components/Common/Appearance"
 import { Logo } from "@/components/Common/Logo"
 import {
@@ -9,17 +8,12 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
-import { Main, type NavigationItem } from "./Main"
+import { Main } from "./Main"
 import { User } from "./User"
-
-const baseItems: NavigationItem[] = [
-  { icon: Home, title: "概览", path: "/" },
-  { icon: Ticket, title: "工单中心", path: "/tickets" },
-  { icon: Bell, title: "通知中心", path: "/notifications" },
-]
 
 export function AppSidebar() {
   const { user: currentUser } = useAuth()
+  const groups = navigationForRoles(currentUser?.roles ?? [])
 
   return (
     <Sidebar collapsible="icon">
@@ -27,7 +21,7 @@ export function AppSidebar() {
         <Logo variant="responsive" />
       </SidebarHeader>
       <SidebarContent>
-        <Main items={baseItems} />
+        <Main groups={groups} />
       </SidebarContent>
       <SidebarFooter>
         <SidebarAppearance />

@@ -10,6 +10,10 @@
       "!**/src/client/**/*",
       "!**/src/components/ui/**/*",
       "!**/playwright-report",
+      "!**/test-results/**/*",
+      "!**/blob-report/**/*",
+      "!**/playwright/.auth/**/*",
+      "!**/playwright/screenshots/**/*",
       "!**/playwright.config.ts"
     ]
   },

@@ -1,26 +1,27 @@
 import { Link as RouterLink, useRouterState } from "@tanstack/react-router"
-import type { LucideIcon } from "lucide-react"
 
+import type { NavigationGroup } from "@/components/app-shell/app-navigation"
 import {
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
 
-export type NavigationItem = {
-  icon: LucideIcon
-  title: string
-  path: string
-}
-
 interface MainProps {
-  items: NavigationItem[]
+  groups: NavigationGroup[]
 }
 
-export function Main({ items }: MainProps) {
+function isActivePath(currentPath: string, itemPath: string) {
+  return itemPath === "/"
+    ? currentPath === "/"
+    : currentPath === itemPath || currentPath.startsWith(`${itemPath}/`)
+}
+
+export function Main({ groups }: MainProps) {
   const { isMobile, setOpenMobile } = useSidebar()
   const router = useRouterState()
   const currentPath = router.location.pathname
@@ -31,12 +32,13 @@ export function Main({ items }: MainProps) {
     }
   }
 
-  return (
-    <SidebarGroup>
+  return groups.map((group) => (
+    <SidebarGroup key={group.title}>
+      <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {items.map((item) => {
-            const isActive = currentPath === item.path
+          {group.items.map((item) => {
+            const isActive = isActivePath(currentPath, item.path)
 
             return (
               <SidebarMenuItem key={item.title}>
@@ -56,5 +58,5 @@ export function Main({ items }: MainProps) {
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
-  )
+  ))
 }

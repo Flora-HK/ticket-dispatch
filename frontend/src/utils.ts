@@ -4,6 +4,7 @@ interface ApiErrorBody {
   error?: {
     code?: string
     message?: string
+    request_id?: string
   }
 }
 
@@ -33,6 +34,20 @@ export function extractErrorMessage(err: Error): string {
 export function getApiErrorCode(err: Error): string | undefined {
   if (!(err instanceof AxiosError)) return undefined
   return apiErrorBody(err)?.error?.code
+}
+
+export function getApiErrorMeta(err: Error): {
+  status?: number
+  code?: string
+  requestId?: string
+} {
+  if (!(err instanceof AxiosError)) return {}
+  const detail = apiErrorBody(err)?.error
+  return {
+    status: err.response?.status,
+    code: detail?.code,
+    requestId: detail?.request_id,
+  }
 }
 
 export function isConflictError(err: Error): boolean {

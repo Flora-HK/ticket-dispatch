@@ -22,8 +22,8 @@ test("Ticket center is the primary authenticated workspace", async ({
 }) => {
   await page.goto("/tickets")
 
-  await expect(page.getByRole("heading", { name: "工单中心" })).toBeVisible()
-  await expect(page.getByText("按当前账号可见范围查询工单")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "工单" })).toBeVisible()
+  await expect(page.getByText("按服务端可见范围查询和处理工单")).toBeVisible()
   await expect(page.getByRole("button", { name: "新建工单" })).toBeVisible()
 })
 
@@ -32,8 +32,8 @@ test("Notification center is available to the current recipient", async ({
 }) => {
   await page.goto("/notifications")
 
-  await expect(page.getByRole("heading", { name: "通知中心" })).toBeVisible()
-  await expect(page.getByText("仅展示当前账号接收的通知")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "通知" })).toBeVisible()
+  await expect(page.getByText("仅展示当前账号接收的站内通知")).toBeVisible()
 })
 
 test("Retired Items entry is absent from the application shell", async ({
@@ -47,7 +47,7 @@ test("Retired Items entry is absent from the application shell", async ({
 test("Missing tickets render an explicit 404 state", async ({ page }) => {
   await page.goto(`/tickets/${crypto.randomUUID()}`)
   await expect(page.getByText("工单不存在或无权查看")).toBeVisible()
-  await expect(page.getByRole("link", { name: "返回工单中心" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "返回工单" })).toBeVisible()
 })
 
 test("409 conflict refreshes the ticket before retrying a comment", async ({
@@ -171,10 +171,11 @@ test("Admin and handler complete the end-to-end ticket flow", async ({
   const ticketId = page.url().split("/").pop()
   expect(ticketId).toBeTruthy()
 
-  await page.getByRole("combobox", { name: "处理人" }).click()
-  await page.getByRole("option", { name: new RegExp(handlerName) }).click()
-  await page.getByRole("button", { name: "人工派发" }).click()
+  await page.getByRole("link", { name: "进入派发工作台" }).click()
+  await page.getByRole("button", { name: new RegExp(handlerName) }).click()
+  await page.getByRole("button", { name: "确认人工派发" }).click()
   await expect(page.getByText("待接受")).toBeVisible()
+  await page.goto(`/tickets/${ticketId}`)
 
   const handlerContext = await browser.newContext({
     storageState: { cookies: [], origins: [] },
@@ -199,7 +200,7 @@ test("Admin and handler complete the end-to-end ticket flow", async ({
   await page.getByRole("button", { name: "关闭工单" }).click()
   await page.getByLabel("操作说明").fill("E2E 验收通过")
   await page.getByRole("button", { name: "确认" }).click()
-  await expect(page.getByText("已关闭")).toBeVisible()
+  await expect(page.locator('[data-status="CLOSED"]').first()).toBeVisible()
   await expect(
     page.getByTestId("ticket-timeline").getByText("工单已关闭"),
   ).toBeVisible()

@@ -29,7 +29,7 @@ test("Valid credentials open the ticket workspace", async ({ page }) => {
   await fillForm(page, firstSuperuser, firstSuperuserPassword)
   await page.getByRole("button", { name: "登录" }).click()
   await page.waitForURL("/")
-  await expect(page.getByText("工单派发概览")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "派发总览" })).toBeVisible()
 })
 
 test("Invalid credentials show the unified API error", async ({ page }) => {
@@ -45,17 +45,22 @@ test("Invalid email is rejected before submission", async ({ page }) => {
   await page.goto("/login")
   await fillForm(page, "invalidemail", firstSuperuserPassword)
   await page.getByRole("button", { name: "登录" }).click()
-  await expect(page.getByText("Invalid email address")).toBeVisible()
+  await expect(page.getByText("请输入有效邮箱地址")).toBeVisible()
 })
 
-test("Logout returns to login and protects ticket routes", async ({ page }) => {
+test("Logout returns to login and protects ticket routes", async ({
+  page,
+}, testInfo) => {
   await page.goto("/login")
   await fillForm(page, firstSuperuser, firstSuperuserPassword)
   await page.getByRole("button", { name: "登录" }).click()
   await page.waitForURL("/")
 
+  if (testInfo.project.name !== "chromium") {
+    await page.getByRole("button", { name: "打开导航" }).click()
+  }
   await page.getByTestId("user-menu").click()
-  await page.getByRole("menuitem", { name: "Log Out" }).click()
+  await page.getByRole("menuitem", { name: "退出登录" }).click()
   await page.waitForURL("/login")
 
   await page.goto("/tickets")

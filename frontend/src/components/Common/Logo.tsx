@@ -1,11 +1,7 @@
 import { Link } from "@tanstack/react-router"
+import { Route } from "lucide-react"
 
-import { useTheme } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
-import icon from "/assets/images/fastapi-icon.svg"
-import iconLight from "/assets/images/fastapi-icon-light.svg"
-import logo from "/assets/images/fastapi-logo.svg"
-import logoLight from "/assets/images/fastapi-logo-light.svg"
 
 interface LogoProps {
   variant?: "full" | "icon" | "responsive"
@@ -18,38 +14,52 @@ export function Logo({
   className,
   asLink = true,
 }: LogoProps) {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === "dark"
-
-  const fullLogo = isDark ? logoLight : logo
-  const iconLogo = isDark ? iconLight : icon
-
   const content =
     variant === "responsive" ? (
       <>
-        <img
-          src={fullLogo}
-          alt="FastAPI"
+        <span
           className={cn(
-            "h-6 w-auto group-data-[collapsible=icon]:hidden",
+            "flex items-center gap-2.5 group-data-[collapsible=icon]:hidden",
             className,
           )}
-        />
-        <img
-          src={iconLogo}
-          alt="FastAPI"
+        >
+          <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
+            <Route className="size-4.5" />
+          </span>
+          <span className="leading-none">
+            <span className="block text-sm font-semibold tracking-tight">
+              Dispatch Desk
+            </span>
+            <span className="mt-1 block text-[10px] font-medium tracking-[0.12em] text-muted-foreground uppercase">
+              工单派发系统
+            </span>
+          </span>
+        </span>
+        <span
           className={cn(
-            "size-5 hidden group-data-[collapsible=icon]:block",
+            "hidden size-8 place-items-center rounded-lg bg-primary text-primary-foreground group-data-[collapsible=icon]:grid",
             className,
           )}
-        />
+        >
+          <Route className="size-4.5" />
+        </span>
       </>
     ) : (
-      <img
-        src={variant === "full" ? fullLogo : iconLogo}
-        alt="FastAPI"
-        className={cn(variant === "full" ? "h-6 w-auto" : "size-5", className)}
-      />
+      <span className={cn("inline-flex items-center gap-3", className)}>
+        <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground">
+          <Route className="size-5" />
+        </span>
+        {variant === "full" ? (
+          <span className="leading-none">
+            <span className="block text-base font-semibold tracking-tight">
+              Dispatch Desk
+            </span>
+            <span className="mt-1 block text-[10px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+              工单派发系统
+            </span>
+          </span>
+        ) : null}
+      </span>
     )
 
   if (!asLink) {

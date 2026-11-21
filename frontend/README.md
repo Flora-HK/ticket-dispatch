@@ -23,6 +23,31 @@ To serve the frontend with FastAPI, run `bun run build` from the `frontend` dire
 
 Check `frontend/package.json` to see the other available commands.
 
+## Demo Workspace
+
+With the backend and PostgreSQL running, create the deterministic demo dataset:
+
+```bash
+bun run seed:demo
+```
+
+The script is idempotent and uses the real API. It creates an operations team,
+three handlers, a no-candidate team, and tickets covering every workflow state.
+
+Demo accounts:
+
+| Role | Account | Password |
+|---|---|---|
+| Dispatcher | `demo.dispatcher@example.com` | `Demo-dispatch-2026!` |
+| Handler | `demo.handler1@example.com` | `Demo-dispatch-2026!` |
+| Handler | `demo.handler2@example.com` | `Demo-dispatch-2026!` |
+| Handler | `demo.handler3@example.com` | `Demo-dispatch-2026!` |
+| Submitter | `demo.submitter@example.com` | `Demo-dispatch-2026!` |
+
+Admin login still uses `FIRST_SUPERUSER` and `FIRST_SUPERUSER_PASSWORD` from the
+root `.env`. These demo credentials are local-only and must not be reused in a
+deployment.
+
 ## Removing the Frontend
 
 If you are developing an API-only app and want to remove the frontend, you can do it easily:

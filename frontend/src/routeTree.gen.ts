@@ -12,8 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
+import { Route as LayoutDispatchRouteImport } from './routes/_layout/dispatch'
 import { Route as LayoutNotificationsRouteImport } from './routes/_layout/notifications'
 import { Route as LayoutTicketsRouteImport } from './routes/_layout/tickets'
+import { Route as LayoutAdminAuditRouteImport } from './routes/_layout/admin.audit'
+import { Route as LayoutAdminTeamsRouteImport } from './routes/_layout/admin.teams'
+import { Route as LayoutAdminUsersRouteImport } from './routes/_layout/admin.users'
 import { Route as LayoutTicketsIndexRouteImport } from './routes/_layout/tickets.index'
 import { Route as LayoutTicketsTicketIdRouteImport } from './routes/_layout/tickets.$ticketId'
 
@@ -31,6 +35,11 @@ const LayoutIndexRoute = LayoutIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutDispatchRoute = LayoutDispatchRouteImport.update({
+  id: '/dispatch',
+  path: '/dispatch',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutNotificationsRoute = LayoutNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -39,6 +48,21 @@ const LayoutNotificationsRoute = LayoutNotificationsRouteImport.update({
 const LayoutTicketsRoute = LayoutTicketsRouteImport.update({
   id: '/tickets',
   path: '/tickets',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutAdminAuditRoute = LayoutAdminAuditRouteImport.update({
+  id: '/admin/audit',
+  path: '/admin/audit',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutAdminTeamsRoute = LayoutAdminTeamsRouteImport.update({
+  id: '/admin/teams',
+  path: '/admin/teams',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutAdminUsersRoute = LayoutAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutTicketsIndexRoute = LayoutTicketsIndexRouteImport.update({
@@ -55,15 +79,23 @@ const LayoutTicketsTicketIdRoute = LayoutTicketsTicketIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
   '/login': typeof LoginRoute
+  '/dispatch': typeof LayoutDispatchRoute
   '/notifications': typeof LayoutNotificationsRoute
   '/tickets': typeof LayoutTicketsRouteWithChildren
+  '/admin/audit': typeof LayoutAdminAuditRoute
+  '/admin/teams': typeof LayoutAdminTeamsRoute
+  '/admin/users': typeof LayoutAdminUsersRoute
   '/tickets/$ticketId': typeof LayoutTicketsTicketIdRoute
   '/tickets/': typeof LayoutTicketsIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/dispatch': typeof LayoutDispatchRoute
   '/notifications': typeof LayoutNotificationsRoute
   '/': typeof LayoutIndexRoute
+  '/admin/audit': typeof LayoutAdminAuditRoute
+  '/admin/teams': typeof LayoutAdminTeamsRoute
+  '/admin/users': typeof LayoutAdminUsersRoute
   '/tickets/$ticketId': typeof LayoutTicketsTicketIdRoute
   '/tickets': typeof LayoutTicketsIndexRoute
 }
@@ -71,9 +103,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_layout': typeof LayoutRouteWithChildren
   '/login': typeof LoginRoute
+  '/_layout/dispatch': typeof LayoutDispatchRoute
   '/_layout/notifications': typeof LayoutNotificationsRoute
   '/_layout/tickets': typeof LayoutTicketsRouteWithChildren
   '/_layout/': typeof LayoutIndexRoute
+  '/_layout/admin/audit': typeof LayoutAdminAuditRoute
+  '/_layout/admin/teams': typeof LayoutAdminTeamsRoute
+  '/_layout/admin/users': typeof LayoutAdminUsersRoute
   '/_layout/tickets/$ticketId': typeof LayoutTicketsTicketIdRoute
   '/_layout/tickets/': typeof LayoutTicketsIndexRoute
 }
@@ -82,19 +118,36 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/dispatch'
     | '/notifications'
     | '/tickets'
+    | '/admin/audit'
+    | '/admin/teams'
+    | '/admin/users'
     | '/tickets/$ticketId'
     | '/tickets/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/notifications' | '/' | '/tickets/$ticketId' | '/tickets'
+  to:
+    | '/login'
+    | '/dispatch'
+    | '/notifications'
+    | '/'
+    | '/admin/audit'
+    | '/admin/teams'
+    | '/admin/users'
+    | '/tickets/$ticketId'
+    | '/tickets'
   id:
     | '__root__'
     | '/_layout'
     | '/login'
+    | '/_layout/dispatch'
     | '/_layout/notifications'
     | '/_layout/tickets'
     | '/_layout/'
+    | '/_layout/admin/audit'
+    | '/_layout/admin/teams'
+    | '/_layout/admin/users'
     | '/_layout/tickets/$ticketId'
     | '/_layout/tickets/'
   fileRoutesById: FileRoutesById
@@ -127,6 +180,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/dispatch': {
+      id: '/_layout/dispatch'
+      path: '/dispatch'
+      fullPath: '/dispatch'
+      preLoaderRoute: typeof LayoutDispatchRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/notifications': {
       id: '/_layout/notifications'
       path: '/notifications'
@@ -139,6 +199,27 @@ declare module '@tanstack/react-router' {
       path: '/tickets'
       fullPath: '/tickets'
       preLoaderRoute: typeof LayoutTicketsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/admin/audit': {
+      id: '/_layout/admin/audit'
+      path: '/admin/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof LayoutAdminAuditRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/admin/teams': {
+      id: '/_layout/admin/teams'
+      path: '/admin/teams'
+      fullPath: '/admin/teams'
+      preLoaderRoute: typeof LayoutAdminTeamsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/admin/users': {
+      id: '/_layout/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof LayoutAdminUsersRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/tickets/': {
@@ -173,15 +254,23 @@ const LayoutTicketsRouteWithChildren = LayoutTicketsRoute._addFileChildren(
 )
 
 interface LayoutRouteChildren {
+  LayoutDispatchRoute: typeof LayoutDispatchRoute
   LayoutNotificationsRoute: typeof LayoutNotificationsRoute
   LayoutTicketsRoute: typeof LayoutTicketsRouteWithChildren
   LayoutIndexRoute: typeof LayoutIndexRoute
+  LayoutAdminAuditRoute: typeof LayoutAdminAuditRoute
+  LayoutAdminTeamsRoute: typeof LayoutAdminTeamsRoute
+  LayoutAdminUsersRoute: typeof LayoutAdminUsersRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
+  LayoutDispatchRoute: LayoutDispatchRoute,
   LayoutNotificationsRoute: LayoutNotificationsRoute,
   LayoutTicketsRoute: LayoutTicketsRouteWithChildren,
   LayoutIndexRoute: LayoutIndexRoute,
+  LayoutAdminAuditRoute: LayoutAdminAuditRoute,
+  LayoutAdminTeamsRoute: LayoutAdminTeamsRoute,
+  LayoutAdminUsersRoute: LayoutAdminUsersRoute,
 }
 
 const LayoutRouteWithChildren =

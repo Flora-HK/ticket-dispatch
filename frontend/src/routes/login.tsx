@@ -19,11 +19,11 @@ import { PasswordInput } from "@/components/ui/password-input"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
 const formSchema = z.object({
-  username: z.email({ message: "Invalid email address" }),
+  username: z.email({ message: "请输入有效邮箱地址" }),
   password: z
     .string()
-    .min(1, { message: "Password is required" })
-    .min(8, { message: "Password must be at least 8 characters" }),
+    .min(1, { message: "请输入密码" })
+    .min(8, { message: "密码至少 8 个字符" }),
 }) satisfies z.ZodType<AccessToken>
 
 type FormData = z.infer<typeof formSchema>
@@ -71,7 +71,12 @@ function Login() {
           className="flex flex-col gap-6"
         >
           <div className="flex flex-col items-center gap-2 text-center">
-            <h1 className="text-2xl font-bold">登录工单系统</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              登录 Dispatch Desk
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              使用组织账号进入对应工作区
+            </p>
           </div>
 
           <div className="grid gap-4">
@@ -80,12 +85,13 @@ function Login() {
               name="username"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>邮箱</FormLabel>
                   <FormControl>
                     <Input
                       data-testid="email-input"
                       placeholder="user@example.com"
                       type="email"
+                      autoComplete="username"
                       {...field}
                     />
                   </FormControl>
@@ -99,11 +105,12 @@ function Login() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>密码</FormLabel>
                   <FormControl>
                     <PasswordInput
                       data-testid="password-input"
-                      placeholder="Password"
+                      placeholder="输入密码"
+                      autoComplete="current-password"
                       {...field}
                     />
                   </FormControl>
@@ -112,7 +119,11 @@ function Login() {
               )}
             />
 
-            <LoadingButton type="submit" loading={loginMutation.isPending}>
+            <LoadingButton
+              type="submit"
+              loading={loginMutation.isPending}
+              className="w-full"
+            >
               登录
             </LoadingButton>
           </div>
