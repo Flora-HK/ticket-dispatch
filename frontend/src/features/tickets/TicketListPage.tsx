@@ -1,6 +1,14 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { ArrowRight, FilterX, RefreshCw, SlidersHorizontal } from "lucide-react"
+import {
+  ArrowRight,
+  ChevronDown,
+  FilterX,
+  RefreshCw,
+  SlidersHorizontal,
+  X,
+} from "lucide-react"
+import { useState } from "react"
 
 import { TeamsService, type TicketStatus, TicketsService } from "@/client"
 import {
@@ -38,15 +46,12 @@ import {
 } from "@/components/ui/table"
 import { extractErrorMessage, getApiErrorMeta } from "@/utils"
 
-export type TicketListSearch = {
-  team_id?: string
-  submitter_id?: string
-  status?: TicketStatus
-  assigned_to_me?: boolean
-  created_from?: string
-  created_to?: string
-  sort?: string
-}
+import {
+  getActiveTicketFilters,
+  type TicketListSearch,
+} from "./ticket-filter-data"
+
+export type { TicketListSearch } from "./ticket-filter-data"
 
 const sortOptions = [
   { value: "updated_at:desc", label: "最近更新" },
@@ -56,6 +61,14 @@ const sortOptions = [
 
 export function TicketListPage({ search }: { search: TicketListSearch }) {
   const navigate = useNavigate()
+  const [advancedOpen, setAdvancedOpen] = useState(
+    Boolean(
+      search.submitter_id ||
+        search.created_from ||
+        search.created_to ||
+        search.assigned_to_me,
+    ),
+  )
   const teams = useQuery({
     queryKey: ["teams", "ticket-filter"],
     queryFn: async () =>
@@ -88,6 +101,7 @@ export function TicketListPage({ search }: { search: TicketListSearch }) {
   })
 
   const items = tickets.data?.pages.flatMap((page) => page.items) ?? []
+  const activeFilters = getActiveTicketFilters(search, teams.data?.items ?? [])
   const hasFilters = Boolean(
     search.team_id ||
       search.submitter_id ||
@@ -114,6 +128,20 @@ export function TicketListPage({ search }: { search: TicketListSearch }) {
     })
   }
 
+  const clearFilters = () => {
+    void navigate({
+      to: "/tickets",
+      search: { sort: search.sort ?? "updated_at:desc" },
+      replace: true,
+    })
+  }
+
+  const removeFilter = (key: keyof TicketListSearch) => {
+    const next = { ...search }
+    delete next[key]
+    void navigate({ to: "/tickets", search: next, replace: true })
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
@@ -137,34 +165,9 @@ export function TicketListPage({ search }: { search: TicketListSearch }) {
         }
       />
 
-      <Card>
-        <CardHeader className="border-b py-4">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="size-4 text-muted-foreground" />
-            <span className="text-sm font-medium">筛选与排序</span>
-            {hasFilters ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto"
-                onClick={() =>
-                  void navigate({
-                    to: "/tickets",
-                    search: {
-                      sort: search.sort ?? "updated_at:desc",
-                    },
-                    replace: true,
-                  })
-                }
-              >
-                <FilterX />
-                清除筛选
-              </Button>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4 pt-4 md:grid-cols-2 xl:grid-cols-6">
-          <FilterField label="Team">
+      <Card className="py-0">
+        <div className="flex flex-wrap items-end gap-2 p-3 md:p-4">
+          <FilterField label="Team" className="min-w-36 flex-1 sm:max-w-52">
             <Select
               value={search.team_id ?? "ALL"}
               onValueChange={(value) =>
@@ -185,7 +188,7 @@ export function TicketListPage({ search }: { search: TicketListSearch }) {
             </Select>
           </FilterField>
 
-          <FilterField label="状态">
+          <FilterField label="状态" className="min-w-32 flex-1 sm:max-w-44">
             <Select
               value={search.status ?? "ALL"}
               onValueChange={(value) =>
@@ -210,42 +213,7 @@ export function TicketListPage({ search }: { search: TicketListSearch }) {
             </Select>
           </FilterField>
 
-          <FilterField label="提交人 ID">
-            <Input
-              aria-label="提交人 ID"
-              value={search.submitter_id ?? ""}
-              onChange={(event) =>
-                patchSearch({
-                  submitter_id: event.target.value || undefined,
-                })
-              }
-              placeholder="用户 UUID"
-            />
-          </FilterField>
-
-          <FilterField label="创建时间从">
-            <Input
-              type="date"
-              aria-label="创建时间从"
-              value={search.created_from ?? ""}
-              onChange={(event) =>
-                patchSearch({ created_from: event.target.value || undefined })
-              }
-            />
-          </FilterField>
-
-          <FilterField label="创建时间到">
-            <Input
-              type="date"
-              aria-label="创建时间到"
-              value={search.created_to ?? ""}
-              onChange={(event) =>
-                patchSearch({ created_to: event.target.value || undefined })
-              }
-            />
-          </FilterField>
-
-          <FilterField label="排序">
+          <FilterField label="排序" className="min-w-32 flex-1 sm:max-w-44">
             <Select
               value={search.sort ?? "updated_at:desc"}
               onValueChange={(value) => patchSearch({ sort: value })}
@@ -263,19 +231,98 @@ export function TicketListPage({ search }: { search: TicketListSearch }) {
             </Select>
           </FilterField>
 
-          <div className="flex items-center gap-2 md:col-span-2 xl:col-span-6">
-            <Checkbox
-              id="assigned-to-me"
-              checked={search.assigned_to_me ?? false}
-              onCheckedChange={(checked) =>
-                patchSearch({
-                  assigned_to_me: checked === true ? true : undefined,
-                })
+          <Button
+            variant="outline"
+            aria-expanded={advancedOpen}
+            aria-controls="advanced-ticket-filters"
+            onClick={() => setAdvancedOpen((open) => !open)}
+          >
+            <SlidersHorizontal />
+            更多筛选
+            <ChevronDown
+              className={
+                advancedOpen
+                  ? "rotate-180 transition-transform"
+                  : "transition-transform"
               }
             />
-            <Label htmlFor="assigned-to-me">只看派发给我的工单</Label>
+          </Button>
+          {hasFilters ? (
+            <Button variant="ghost" onClick={clearFilters}>
+              <FilterX />
+              清除
+            </Button>
+          ) : null}
+        </div>
+
+        {activeFilters.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5 border-t px-3 py-2.5 md:px-4">
+            {activeFilters.map((filter) => (
+              <button
+                key={filter.key}
+                type="button"
+                className="inline-flex min-h-8 max-md:min-h-11 items-center gap-1 rounded-md border bg-muted/45 px-2 text-xs font-medium hover:bg-muted"
+                aria-label={`移除筛选 ${filter.label}`}
+                onClick={() => removeFilter(filter.key)}
+              >
+                {filter.label}
+                <X className="size-3.5" />
+              </button>
+            ))}
           </div>
-        </CardContent>
+        ) : null}
+
+        {advancedOpen ? (
+          <div
+            id="advanced-ticket-filters"
+            className="grid gap-3 border-t p-3 sm:grid-cols-2 md:p-4 xl:grid-cols-4"
+          >
+            <FilterField label="提交人 ID">
+              <Input
+                aria-label="提交人 ID"
+                value={search.submitter_id ?? ""}
+                onChange={(event) =>
+                  patchSearch({
+                    submitter_id: event.target.value || undefined,
+                  })
+                }
+                placeholder="用户 UUID"
+              />
+            </FilterField>
+            <FilterField label="创建时间从">
+              <Input
+                type="date"
+                aria-label="创建时间从"
+                value={search.created_from ?? ""}
+                onChange={(event) =>
+                  patchSearch({ created_from: event.target.value || undefined })
+                }
+              />
+            </FilterField>
+            <FilterField label="创建时间到">
+              <Input
+                type="date"
+                aria-label="创建时间到"
+                value={search.created_to ?? ""}
+                onChange={(event) =>
+                  patchSearch({ created_to: event.target.value || undefined })
+                }
+              />
+            </FilterField>
+            <div className="flex min-h-11 items-center gap-2">
+              <Checkbox
+                id="assigned-to-me"
+                checked={search.assigned_to_me ?? false}
+                onCheckedChange={(checked) =>
+                  patchSearch({
+                    assigned_to_me: checked === true ? true : undefined,
+                  })
+                }
+              />
+              <Label htmlFor="assigned-to-me">只看派发给我的工单</Label>
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       <Card className="overflow-hidden py-0">
@@ -286,7 +333,9 @@ export function TicketListPage({ search }: { search: TicketListSearch }) {
               已加载 {items.length} 条
             </p>
           </div>
-          <StatusBadge kind="ticket" value={search.status ?? "ALL"} />
+          {search.status ? (
+            <StatusBadge kind="ticket" value={search.status} />
+          ) : null}
         </CardHeader>
         <CardContent className="p-0">
           {tickets.isLoading ? (
@@ -307,11 +356,28 @@ export function TicketListPage({ search }: { search: TicketListSearch }) {
                   ? "尝试清除筛选或调整查询条件。"
                   : "当前账号的可见范围内还没有工单。"
               }
+              action={
+                hasFilters ? (
+                  <Button variant="outline" onClick={clearFilters}>
+                    <FilterX />
+                    清除筛选
+                  </Button>
+                ) : (
+                  <CreateTicketDialog
+                    trigger={
+                      <Button>
+                        <ArrowRight />
+                        新建第一张工单
+                      </Button>
+                    }
+                  />
+                )
+              }
             />
           ) : (
             <>
               <div className="hidden md:block">
-                <Table>
+                <Table className="min-w-[880px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>工单</TableHead>
@@ -408,12 +474,14 @@ export function TicketListPage({ search }: { search: TicketListSearch }) {
 function FilterField({
   label,
   children,
+  className,
 }: {
   label: string
   children: React.ReactNode
+  className?: string
 }) {
   return (
-    <div className="grid gap-2">
+    <div className={`grid gap-2 ${className ?? ""}`}>
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </div>

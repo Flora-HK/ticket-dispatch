@@ -399,7 +399,7 @@ export function UsersPage() {
           ) : (
             <>
               <div className="hidden md:block">
-                <Table>
+                <Table className="min-w-[720px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>用户</TableHead>

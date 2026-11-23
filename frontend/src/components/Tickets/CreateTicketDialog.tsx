@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { Plus } from "lucide-react"
-import { useState } from "react"
+import { type ReactNode, useState } from "react"
 
 import {
   TeamsService,
@@ -33,7 +33,7 @@ import { handleError } from "@/utils"
 
 import { newIdempotencyKey } from "./ticket-ui"
 
-export function CreateTicketDialog() {
+export function CreateTicketDialog({ trigger }: { trigger?: ReactNode }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user } = useAuth()
@@ -89,10 +89,12 @@ export function CreateTicketDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus />
-          新建工单
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus />
+            新建工单
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

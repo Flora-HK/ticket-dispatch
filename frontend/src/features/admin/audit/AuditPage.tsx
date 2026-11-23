@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from "@tanstack/react-query"
-import { Eye, RefreshCw, Search } from "lucide-react"
+import { ChevronDown, Eye, FilterX, RefreshCw, Search, X } from "lucide-react"
 import { useState } from "react"
 
 import {
@@ -45,6 +45,8 @@ import {
 } from "@/components/ui/table"
 import { extractErrorMessage, getApiErrorMeta } from "@/utils"
 
+import { getAuditActionLabel, getAuditEntityLabel } from "./audit-data"
+
 const actions: AuditAction[] = [
   "TICKET_CREATED",
   "TICKET_UPDATED",
@@ -89,6 +91,7 @@ export function AuditPage() {
   const [entityKeyText, setEntityKeyText] = useState("")
   const [filterError, setFilterError] = useState<string | null>(null)
   const [selected, setSelected] = useState<AuditLogPublic | null>(null)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const audit = useInfiniteQuery({
     queryKey: ["admin-audit", filters],
@@ -122,6 +125,16 @@ export function AuditPage() {
 
   const items = audit.data?.pages.flatMap((page) => page.items) ?? []
   const errorMeta = audit.error ? getApiErrorMeta(audit.error) : {}
+  const hasFilters = Boolean(
+    filters.action ||
+      filters.outcome ||
+      filters.entityType ||
+      filters.ticketId ||
+      filters.actorId ||
+      filters.createdFrom ||
+      filters.createdTo ||
+      Object.keys(filters.entityKey ?? {}).length,
+  )
 
   const applyFilters = () => {
     let entityKey: Record<string, string> | undefined
@@ -145,6 +158,23 @@ export function AuditPage() {
     setFilters({ ...draft, entityKey })
   }
 
+  const clearFilters = () => {
+    setDraft({})
+    setFilters({})
+    setEntityKeyText("")
+    setFilterError(null)
+  }
+
+  const removeFilter = (key: keyof AuditFilters) => {
+    const nextFilters = { ...filters }
+    const nextDraft = { ...draft }
+    delete nextFilters[key]
+    delete nextDraft[key]
+    setFilters(nextFilters)
+    setDraft(nextDraft)
+    if (key === "entityKey") setEntityKeyText("")
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
@@ -165,14 +195,8 @@ export function AuditPage() {
         }
       />
 
-      <Card>
-        <CardHeader className="border-b py-4">
-          <p className="text-sm font-medium">查询条件</p>
-          <p className="text-xs text-muted-foreground">
-            操作筛选以服务端稳定枚举为准。
-          </p>
-        </CardHeader>
-        <CardContent className="grid gap-4 pt-4 md:grid-cols-2 xl:grid-cols-4">
+      <Card className="py-0">
+        <div className="flex flex-wrap items-end gap-2 p-3 md:p-4">
           <FilterSelect
             label="操作"
             value={draft.action ?? "ALL"}
@@ -182,7 +206,11 @@ export function AuditPage() {
                 action: value === "ALL" ? undefined : (value as AuditAction),
               }))
             }
-            items={actions}
+            items={actions.map((value) => ({
+              value,
+              label: getAuditActionLabel(value),
+            }))}
+            className="min-w-36 flex-1 sm:max-w-52"
           />
           <FilterSelect
             label="结果"
@@ -193,7 +221,11 @@ export function AuditPage() {
                 outcome: value === "ALL" ? undefined : (value as AuditOutcome),
               }))
             }
-            items={["SUCCESS", "FAILED"]}
+            items={[
+              { value: "SUCCESS", label: "成功" },
+              { value: "FAILED", label: "失败" },
+            ]}
+            className="min-w-28 flex-1 sm:max-w-36"
           />
           <FilterSelect
             label="实体类型"
@@ -205,92 +237,162 @@ export function AuditPage() {
                   value === "ALL" ? undefined : (value as AuditEntityType),
               }))
             }
-            items={entityTypes}
+            items={entityTypes.map((value) => ({
+              value,
+              label: getAuditEntityLabel(value),
+            }))}
+            className="min-w-32 flex-1 sm:max-w-44"
           />
-          <div className="grid gap-2 text-xs font-medium">
-            <span>工单 ID</span>
-            <Input
-              aria-label="工单 ID"
-              value={draft.ticketId ?? ""}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  ticketId: event.target.value,
-                }))
+          <Button
+            variant="outline"
+            aria-expanded={advancedOpen}
+            aria-controls="advanced-audit-filters"
+            onClick={() => setAdvancedOpen((open) => !open)}
+          >
+            <ChevronDown
+              className={
+                advancedOpen
+                  ? "rotate-180 transition-transform"
+                  : "transition-transform"
               }
             />
-          </div>
-          <div className="grid gap-2 text-xs font-medium">
-            <span>Actor 用户 ID</span>
-            <Input
-              aria-label="Actor 用户 ID"
-              value={draft.actorId ?? ""}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  actorId: event.target.value,
-                }))
-              }
-            />
-          </div>
-          <div className="grid gap-2 text-xs font-medium">
-            <span>开始日期</span>
-            <Input
-              aria-label="开始日期"
-              type="date"
-              value={draft.createdFrom ?? ""}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  createdFrom: event.target.value,
-                }))
-              }
-            />
-          </div>
-          <div className="grid gap-2 text-xs font-medium">
-            <span>结束日期</span>
-            <Input
-              aria-label="结束日期"
-              type="date"
-              value={draft.createdTo ?? ""}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  createdTo: event.target.value,
-                }))
-              }
-            />
-          </div>
-          <div className="grid gap-2 text-xs font-medium">
-            <span>entity_key JSON</span>
-            <Input
-              aria-label="entity_key JSON"
-              value={entityKeyText}
-              onChange={(event) => setEntityKeyText(event.target.value)}
-              placeholder='{"ticket_id":"..."}'
-            />
-          </div>
-          <div className="flex items-end gap-2 md:col-span-2 xl:col-span-4">
-            <Button onClick={applyFilters}>
-              <Search />
-              应用筛选
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDraft({})
-                setFilters({})
-                setEntityKeyText("")
-                setFilterError(null)
-              }}
-            >
+            更多条件
+          </Button>
+          <Button onClick={applyFilters}>
+            <Search />
+            应用筛选
+          </Button>
+          {hasFilters ? (
+            <Button variant="ghost" onClick={clearFilters}>
+              <FilterX />
               清除
             </Button>
-            {filterError ? (
-              <p className="text-xs text-destructive">{filterError}</p>
+          ) : null}
+        </div>
+
+        {hasFilters ? (
+          <div className="flex flex-wrap gap-1.5 border-t px-3 py-2.5 md:px-4">
+            {filters.action ? (
+              <FilterChip
+                label={getAuditActionLabel(filters.action)}
+                onRemove={() => removeFilter("action")}
+              />
+            ) : null}
+            {filters.outcome ? (
+              <FilterChip
+                label={filters.outcome === "SUCCESS" ? "成功" : "失败"}
+                onRemove={() => removeFilter("outcome")}
+              />
+            ) : null}
+            {filters.entityType ? (
+              <FilterChip
+                label={getAuditEntityLabel(filters.entityType)}
+                onRemove={() => removeFilter("entityType")}
+              />
+            ) : null}
+            {filters.ticketId ? (
+              <FilterChip
+                label={`工单 ${filters.ticketId.slice(0, 8)}`}
+                onRemove={() => removeFilter("ticketId")}
+              />
+            ) : null}
+            {filters.actorId ? (
+              <FilterChip
+                label={`Actor ${filters.actorId.slice(0, 8)}`}
+                onRemove={() => removeFilter("actorId")}
+              />
+            ) : null}
+            {filters.createdFrom ? (
+              <FilterChip
+                label={`从 ${filters.createdFrom}`}
+                onRemove={() => removeFilter("createdFrom")}
+              />
+            ) : null}
+            {filters.createdTo ? (
+              <FilterChip
+                label={`到 ${filters.createdTo}`}
+                onRemove={() => removeFilter("createdTo")}
+              />
+            ) : null}
+            {filters.entityKey ? (
+              <FilterChip
+                label="实体键"
+                onRemove={() => removeFilter("entityKey")}
+              />
             ) : null}
           </div>
-        </CardContent>
+        ) : null}
+
+        {advancedOpen ? (
+          <div
+            id="advanced-audit-filters"
+            className="grid gap-3 border-t p-3 sm:grid-cols-2 md:p-4 xl:grid-cols-4"
+          >
+            <AuditFilterField label="工单 ID">
+              <Input
+                aria-label="工单 ID"
+                value={draft.ticketId ?? ""}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    ticketId: event.target.value,
+                  }))
+                }
+              />
+            </AuditFilterField>
+            <AuditFilterField label="Actor 用户 ID">
+              <Input
+                aria-label="Actor 用户 ID"
+                value={draft.actorId ?? ""}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    actorId: event.target.value,
+                  }))
+                }
+              />
+            </AuditFilterField>
+            <AuditFilterField label="开始日期">
+              <Input
+                aria-label="开始日期"
+                type="date"
+                value={draft.createdFrom ?? ""}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    createdFrom: event.target.value,
+                  }))
+                }
+              />
+            </AuditFilterField>
+            <AuditFilterField label="结束日期">
+              <Input
+                aria-label="结束日期"
+                type="date"
+                value={draft.createdTo ?? ""}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    createdTo: event.target.value,
+                  }))
+                }
+              />
+            </AuditFilterField>
+            <AuditFilterField label="entity_key JSON">
+              <Input
+                aria-label="entity_key JSON"
+                value={entityKeyText}
+                onChange={(event) => setEntityKeyText(event.target.value)}
+                placeholder='{"ticket_id":"..."}'
+              />
+            </AuditFilterField>
+            {filterError ? (
+              <p className="text-xs text-destructive sm:col-span-2 xl:col-span-4">
+                {filterError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </Card>
 
       <Card className="overflow-hidden py-0">
@@ -315,11 +417,19 @@ export function AuditPage() {
             <EmptyState
               title="没有审计记录"
               description="调整筛选条件后再查询。"
+              action={
+                hasFilters ? (
+                  <Button variant="outline" onClick={clearFilters}>
+                    <FilterX />
+                    清除筛选
+                  </Button>
+                ) : undefined
+              }
             />
           ) : (
             <>
               <div className="hidden lg:block">
-                <Table>
+                <Table className="min-w-[980px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>时间</TableHead>
@@ -334,11 +444,16 @@ export function AuditPage() {
                   <TableBody>
                     {items.map((entry) => (
                       <TableRow key={entry.id}>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
+                        <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
                           {formatDateTime(entry.created_at)}
                         </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {entry.action}
+                        <TableCell>
+                          <span className="block text-xs font-medium">
+                            {getAuditActionLabel(entry.action)}
+                          </span>
+                          <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
+                            {entry.action}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <StatusBadge kind="audit" value={entry.outcome} />
@@ -348,9 +463,13 @@ export function AuditPage() {
                             entry.actor?.email ||
                             entry.actor_type}
                         </TableCell>
-                        <TableCell className="max-w-52 truncate font-mono text-xs">
-                          {entry.entity_type} ·{" "}
-                          {entry.entity_id?.slice(0, 8) ?? "—"}
+                        <TableCell className="max-w-52">
+                          <span className="block text-xs">
+                            {getAuditEntityLabel(entry.entity_type)}
+                          </span>
+                          <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
+                            {entry.entity_id?.slice(0, 8) ?? "—"}
+                          </span>
                         </TableCell>
                         <TableCell className="max-w-44 truncate font-mono text-[11px] text-muted-foreground">
                           {entry.request_id}
@@ -379,12 +498,21 @@ export function AuditPage() {
                     className="w-full space-y-2 px-4 py-3 text-left hover:bg-muted/40"
                     onClick={() => setSelected(entry)}
                   >
+                    <span className="sr-only">查看审计记录 {entry.id}</span>
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-mono text-xs">{entry.action}</span>
+                      <span>
+                        <span className="block text-sm font-medium">
+                          {getAuditActionLabel(entry.action)}
+                        </span>
+                        <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
+                          {entry.action}
+                        </span>
+                      </span>
                       <StatusBadge kind="audit" value={entry.outcome} />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {entry.entity_type} · {formatDateTime(entry.created_at)}
+                      {getAuditEntityLabel(entry.entity_type)} ·{" "}
+                      {formatDateTime(entry.created_at)}
                     </p>
                   </button>
                 ))}
@@ -407,40 +535,87 @@ export function AuditPage() {
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>审计详情 #{selected?.id}</DialogTitle>
+            <DialogTitle>
+              {selected ? getAuditActionLabel(selected.action) : "审计详情"}
+            </DialogTitle>
             <DialogDescription>
-              {selected?.action} ·{" "}
+              {selected?.action} · 记录 #{selected?.id} ·{" "}
               {selected ? formatDateTime(selected.created_at) : ""}
             </DialogDescription>
           </DialogHeader>
           {selected ? (
             <div className="space-y-4 text-sm">
-              <DetailBlock
-                title="执行上下文"
-                value={{
-                  actor_type: selected.actor_type,
-                  actor: selected.actor,
-                  entity_type: selected.entity_type,
-                  entity_id: selected.entity_id,
-                  ticket_id: selected.ticket_id,
-                  request_id: selected.request_id,
-                  error_code: selected.error_code,
-                }}
-              />
-              <DetailBlock
-                title="状态快照"
-                value={{
-                  before: selected.before_state,
-                  after: selected.after_state,
-                }}
-              />
-              <DetailBlock
-                title="受控详情"
-                value={{
-                  entity_key: selected.entity_key,
-                  detail: selected.detail,
-                }}
-              />
+              <dl className="grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2">
+                <AuditFact
+                  label="结果"
+                  value={<StatusBadge kind="audit" value={selected.outcome} />}
+                />
+                <AuditFact
+                  label="Actor"
+                  value={
+                    selected.actor?.full_name ||
+                    selected.actor?.email ||
+                    selected.actor_type
+                  }
+                />
+                <AuditFact
+                  label="实体"
+                  value={getAuditEntityLabel(selected.entity_type)}
+                />
+                <AuditFact
+                  label="实体 ID"
+                  value={selected.entity_id?.slice(0, 8) ?? "—"}
+                  mono
+                />
+                {selected.ticket_id ? (
+                  <AuditFact
+                    label="工单 ID"
+                    value={selected.ticket_id.slice(0, 8)}
+                    mono
+                  />
+                ) : null}
+                {selected.error_code ? (
+                  <AuditFact label="错误码" value={selected.error_code} mono />
+                ) : null}
+                <AuditFact
+                  label="Request ID"
+                  value={selected.request_id}
+                  mono
+                />
+              </dl>
+              <details className="rounded-lg border">
+                <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium">
+                  查看原始 JSON
+                </summary>
+                <div className="space-y-4 border-t p-3">
+                  <DetailBlock
+                    title="执行上下文"
+                    value={{
+                      actor_type: selected.actor_type,
+                      actor: selected.actor,
+                      entity_type: selected.entity_type,
+                      entity_id: selected.entity_id,
+                      ticket_id: selected.ticket_id,
+                      request_id: selected.request_id,
+                      error_code: selected.error_code,
+                    }}
+                  />
+                  <DetailBlock
+                    title="状态快照"
+                    value={{
+                      before: selected.before_state,
+                      after: selected.after_state,
+                    }}
+                  />
+                  <DetailBlock
+                    title="受控详情"
+                    value={{
+                      entity_key: selected.entity_key,
+                      detail: selected.detail,
+                    }}
+                  />
+                </div>
+              </details>
             </div>
           ) : null}
         </DialogContent>
@@ -454,14 +629,16 @@ function FilterSelect({
   value,
   onChange,
   items,
+  className,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
-  items: string[]
+  items: Array<{ value: string; label: string }>
+  className?: string
 }) {
   return (
-    <div className="grid gap-2 text-xs font-medium">
+    <div className={`grid gap-2 text-xs font-medium ${className ?? ""}`}>
       <span>{label}</span>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger aria-label={label}>
@@ -470,12 +647,70 @@ function FilterSelect({
         <SelectContent>
           <SelectItem value="ALL">全部</SelectItem>
           {items.map((item) => (
-            <SelectItem key={item} value={item}>
-              {item}
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
+    </div>
+  )
+}
+
+function AuditFilterField({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="grid gap-2 text-xs font-medium">
+      <span>{label}</span>
+      {children}
+    </div>
+  )
+}
+
+function FilterChip({
+  label,
+  onRemove,
+}: {
+  label: string
+  onRemove: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="inline-flex min-h-8 max-md:min-h-11 items-center gap-1 rounded-md border bg-muted/45 px-2 text-xs font-medium hover:bg-muted"
+      aria-label={`移除筛选 ${label}`}
+      onClick={onRemove}
+    >
+      {label}
+      <X className="size-3.5" />
+    </button>
+  )
+}
+
+function AuditFact({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string
+  value: React.ReactNode
+  mono?: boolean
+}) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd
+        className={
+          mono ? "mt-0.5 break-all font-mono text-xs" : "mt-0.5 text-sm"
+        }
+      >
+        {value}
+      </dd>
     </div>
   )
 }

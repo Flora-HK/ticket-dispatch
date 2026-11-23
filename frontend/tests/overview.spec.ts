@@ -83,9 +83,20 @@ test("dispatch workbench stages the mobile decision flow", async ({
 
 test("ticket filters are represented in the URL", async ({ page }) => {
   await page.goto("/tickets")
+  await expect(page.getByLabel("提交人 ID")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "更多筛选" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  )
   await page.getByRole("combobox", { name: "状态" }).click()
   await page.getByRole("option", { name: "待派发" }).click()
 
   await expect(page).toHaveURL(/status=PENDING_ASSIGNMENT/)
+  await expect(
+    page.getByRole("button", { name: "移除筛选 待派发" }),
+  ).toBeVisible()
+  await page.getByRole("button", { name: "移除筛选 待派发" }).click()
+  await expect(page).not.toHaveURL(/status=PENDING_ASSIGNMENT/)
+  await page.getByRole("button", { name: "更多筛选" }).click()
   await expect(page.getByText("只看派发给我的工单")).toBeVisible()
 })

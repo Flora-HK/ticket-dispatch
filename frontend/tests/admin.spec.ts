@@ -23,13 +23,37 @@ test("admin can navigate the three governance areas", async ({
     await page.goto("/admin/audit")
   }
   await expect(page.getByRole("heading", { name: "审计查询" })).toBeVisible()
-  await expect(page.getByText("查询条件")).toBeVisible()
+  await expect(page.getByRole("combobox", { name: "操作" })).toBeVisible()
+  await expect(page.getByText("审计记录", { exact: true })).toBeVisible()
 })
 
 test("notification page is read-only", async ({ page }) => {
   await page.goto("/notifications")
   await expect(page.getByRole("heading", { name: "通知" })).toBeVisible()
   await expect(page.getByRole("button", { name: /标记已读/ })).toHaveCount(0)
+})
+
+test("audit records expose readable labels before raw details", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "covered on desktop")
+  await page.goto("/admin/audit")
+  await expect(page.getByText("工单创建").first()).toBeVisible()
+  await expect(page.getByRole("button", { name: "更多条件" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  )
+
+  await page
+    .getByRole("button", { name: /查看审计记录/ })
+    .first()
+    .click()
+  const dialog = page.getByRole("dialog")
+  await expect(dialog.getByText("查看原始 JSON")).toBeVisible()
+  await expect(dialog.getByText("Actor", { exact: true })).toBeVisible()
+  await expect(dialog.getByText("执行上下文")).toBeHidden()
+  await dialog.getByText("查看原始 JSON").click()
+  await expect(dialog.getByText("执行上下文")).toBeVisible()
 })
 
 test("admin creates a user through the governance form", async ({
