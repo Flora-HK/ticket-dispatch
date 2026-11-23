@@ -222,7 +222,6 @@ export function UsersPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        eyebrow="Administration"
         title="用户与角色"
         description="管理账号资料、启用状态和固定角色集合。角色变化会立即影响后续请求权限。"
         actions={

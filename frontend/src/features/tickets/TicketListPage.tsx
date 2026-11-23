@@ -117,7 +117,6 @@ export function TicketListPage({ search }: { search: TicketListSearch }) {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        eyebrow="Ticket workspace"
         title="工单"
         description="按服务端可见范围查询和处理工单。筛选条件保留在地址栏中。"
         actions={

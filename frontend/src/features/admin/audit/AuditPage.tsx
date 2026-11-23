@@ -148,7 +148,6 @@ export function AuditPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        eyebrow="Administration"
         title="审计查询"
         description="只读查看关键业务操作、结果和受控详情。原始审计记录不可修改或删除。"
         actions={

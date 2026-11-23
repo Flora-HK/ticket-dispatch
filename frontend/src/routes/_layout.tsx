@@ -22,11 +22,11 @@ function Layout() {
       <AppSidebar />
       <SidebarInset>
         <AppTopbar />
-        <main className="flex-1 bg-surface-sunken/45 px-4 py-6 md:px-7 md:py-8">
-          <div className="mx-auto max-w-[1500px]">
+        <div className="min-w-0 flex-1 bg-surface-sunken/60 px-4 py-5 md:px-7 md:py-7">
+          <div className="mx-auto min-w-0 max-w-[1500px]">
             <Outlet />
           </div>
-        </main>
+        </div>
         <Footer />
       </SidebarInset>
     </SidebarProvider>

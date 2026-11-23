@@ -18,21 +18,22 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "flex flex-col gap-4 md:flex-row md:items-end md:justify-between",
+        "flex flex-col gap-3 md:flex-row md:items-end md:justify-between",
         className,
       )}
     >
       <div className="min-w-0">
         {eyebrow ? (
-          <p className="mb-1.5 text-[11px] font-semibold tracking-[0.14em] text-primary uppercase">
+          <p className="mb-1 flex items-center gap-2 text-meta font-medium text-muted-foreground">
+            <span className="h-px w-4 bg-primary" aria-hidden="true" />
             {eyebrow}
           </p>
         ) : null}
-        <h1 className="text-2xl font-semibold tracking-tight text-balance md:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-[-0.025em] text-balance md:text-[1.75rem]">
           {title}
         </h1>
         {description ? (
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+          <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">
             {description}
           </p>
         ) : null}

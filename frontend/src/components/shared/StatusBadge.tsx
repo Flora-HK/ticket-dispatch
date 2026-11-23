@@ -62,7 +62,7 @@ export function StatusBadge({
     <Badge
       data-status={value}
       variant="outline"
-      className={cn("font-medium", badgeClasses[value])}
+      className={cn("rounded-md px-2 py-0.5 font-medium", badgeClasses[value])}
     >
       {labels[value] ?? value}
     </Badge>

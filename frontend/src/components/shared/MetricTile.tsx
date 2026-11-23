@@ -15,26 +15,33 @@ export function MetricTile({
   icon: LucideIcon
   tone?: "default" | "warning" | "danger" | "success"
 }) {
+  const resolvedTone =
+    Number(value) === 0 && tone !== "default" ? "neutral" : tone
+
   return (
-    <div className="rounded-xl border bg-card px-4 py-4 shadow-xs">
+    <div
+      className="rounded-lg border bg-card px-4 py-3.5 shadow-none"
+      data-tone={resolvedTone}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="mt-2 font-mono text-2xl font-semibold tracking-tight tabular-nums">
+          <p className="text-meta font-medium text-muted-foreground">{label}</p>
+          <p className="mt-1.5 font-mono text-[1.375rem] font-semibold tracking-tight tabular-nums">
             {value}
           </p>
           {detail ? (
-            <p className="mt-1 text-[11px] text-muted-foreground">{detail}</p>
+            <p className="mt-1 text-meta text-muted-foreground">{detail}</p>
           ) : null}
         </div>
         <span
           className={cn(
-            "grid size-9 place-items-center rounded-lg",
-            tone === "default" && "bg-primary/10 text-primary",
-            tone === "warning" &&
+            "grid size-8 place-items-center rounded-md",
+            (resolvedTone === "default" || resolvedTone === "neutral") &&
+              "bg-muted text-muted-foreground",
+            resolvedTone === "warning" &&
               "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-            tone === "danger" && "bg-destructive/10 text-destructive",
-            tone === "success" &&
+            resolvedTone === "danger" && "bg-destructive/10 text-destructive",
+            resolvedTone === "success" &&
               "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
           )}
         >

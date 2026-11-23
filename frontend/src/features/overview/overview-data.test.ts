@@ -4,6 +4,7 @@ import {
   buildOverviewSnapshot,
   collectTicketPages,
   type OverviewTicket,
+  workloadBarWidth,
 } from "./overview-data"
 
 function ticket(
@@ -72,5 +73,10 @@ describe("overview data", () => {
       "CONFIRMATION_OVER_48H",
       "WORKLOAD_SKEW",
     ])
+  })
+
+  it("does not draw a positive workload bar for zero load", () => {
+    expect(workloadBarWidth(0, 4)).toBe(0)
+    expect(workloadBarWidth(1, 100)).toBe(8)
   })
 })

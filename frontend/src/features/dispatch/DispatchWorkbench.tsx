@@ -221,7 +221,6 @@ export function DispatchWorkbench({
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        eyebrow="Dispatcher board"
         title="派发工作台"
         description="比较服务端候选排名与实时负载，再选择人工指定或最低负载自动派发。"
         actions={
@@ -389,7 +388,7 @@ export function DispatchWorkbench({
                 type="button"
                 disabled={!canDispatchSelected}
                 className={cn(
-                  "rounded-md px-3 py-2 text-sm font-medium",
+                  "rounded-md px-3 py-2 text-sm font-medium max-md:min-h-11",
                   mode === "MANUAL"
                     ? "bg-background shadow-xs"
                     : "text-muted-foreground",
@@ -402,7 +401,7 @@ export function DispatchWorkbench({
                 type="button"
                 disabled={!canDispatchSelected}
                 className={cn(
-                  "rounded-md px-3 py-2 text-sm font-medium",
+                  "rounded-md px-3 py-2 text-sm font-medium max-md:min-h-11",
                   mode === "AUTO"
                     ? "bg-background shadow-xs"
                     : "text-muted-foreground",

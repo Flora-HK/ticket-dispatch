@@ -236,7 +236,6 @@ export function TeamsPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        eyebrow="Administration"
         title="Team 与成员"
         description="维护派发队列、启用状态和处理人可用性。所有变更使用 Team 版本保护。"
         actions={

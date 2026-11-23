@@ -48,6 +48,7 @@ import {
   buildOverviewSnapshot,
   collectTicketPages,
   type OverviewTicket,
+  workloadBarWidth,
 } from "./overview-data"
 
 type OverviewQueryData = {
@@ -169,7 +170,6 @@ export function DispatcherOverview() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Dispatcher command"
         title={canDispatch ? "派发总览" : "工作总览"}
         description={
           canDispatch
@@ -384,7 +384,7 @@ export function DispatcherOverview() {
                             <div
                               className="h-full rounded-full bg-primary"
                               style={{
-                                width: `${Math.max(8, (item.load / maxLoad) * 100)}%`,
+                                width: `${workloadBarWidth(item.load, maxLoad)}%`,
                               }}
                             />
                           </div>

@@ -20,6 +20,12 @@ export type OverviewSnapshot = {
   partial: boolean
 }
 
+// 零负载不绘制正长度负载条，避免把无负载误读为有负载。
+export function workloadBarWidth(load: number, maxLoad: number): number {
+  if (load <= 0) return 0
+  return Math.max(8, (load / Math.max(1, maxLoad)) * 100)
+}
+
 export async function collectTicketPages(
   fetchPage: (cursor?: string | null) => Promise<TicketPage>,
   options: { maxItems: number },

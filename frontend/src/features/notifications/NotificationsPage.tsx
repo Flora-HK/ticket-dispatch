@@ -77,7 +77,6 @@ export function NotificationsPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        eyebrow="Personal inbox"
         title="通知"
         description="仅展示当前账号接收的站内通知。通知接口只读，不提供标记已读。"
         actions={
