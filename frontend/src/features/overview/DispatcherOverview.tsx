@@ -42,12 +42,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import useAuth from "@/hooks/useAuth"
+import { cn } from "@/lib/utils"
 import { extractErrorMessage, getApiErrorMeta } from "@/utils"
 
 import {
   buildOverviewSnapshot,
   collectTicketPages,
+  formatWaitDuration,
+  isPendingOverdue,
   type OverviewTicket,
+  summarizeWorkload,
   workloadBarWidth,
 } from "./overview-data"
 
@@ -87,7 +91,7 @@ async function readCandidatePreview(
         !seenTeams.has(ticket.team_id) &&
         seenTeams.add(ticket.team_id),
     )
-    .slice(0, 8)
+    .slice(0, 12)
     .map((ticket) => ticket.id)
 
   const settled = await Promise.allSettled(
@@ -112,8 +116,11 @@ export function DispatcherOverview() {
     queryKey: ["overview", "snapshot", user?.id ?? "anonymous"],
     queryFn: async (): Promise<OverviewQueryData> => {
       const result = await readOverviewTickets()
+      const pendingTickets = result.items
+        .filter((ticket) => ticket.status === "PENDING_ASSIGNMENT")
+        .sort((left, right) => left.updated_at.localeCompare(right.updated_at))
       const candidateGroups = await readCandidatePreview(
-        result.items,
+        pendingTickets,
         Boolean(canDispatch),
       )
       return {
@@ -165,7 +172,9 @@ export function DispatcherOverview() {
   }, [overview.data])
 
   const errorMeta = overview.error ? getApiErrorMeta(overview.error) : {}
-  const maxLoad = Math.max(1, ...workload.map((item) => item.load))
+  const now = new Date()
+  const workloadSummary = summarizeWorkload(workload.map((item) => item.load))
+  const maxLoad = Math.max(1, workloadSummary.max)
 
   return (
     <div className="flex flex-col gap-6">
@@ -247,7 +256,10 @@ export function DispatcherOverview() {
               <CardHeader className="border-b py-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <CardTitle>优先队列</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      优先队列
+                      <StatusBadge kind="ticket" value="PENDING_ASSIGNMENT" />
+                    </CardTitle>
                     <CardDescription>
                       服务端可见范围内等待派发的工单
                     </CardDescription>
@@ -275,8 +287,8 @@ export function DispatcherOverview() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>工单</TableHead>
-                            <TableHead className="w-32">Team</TableHead>
-                            <TableHead className="w-36">更新时间</TableHead>
+                            <TableHead className="w-28">Team</TableHead>
+                            <TableHead className="w-36">等待</TableHead>
                             <TableHead className="w-10" />
                           </TableRow>
                         </TableHeader>
@@ -285,9 +297,9 @@ export function DispatcherOverview() {
                             <TableRow key={ticket.id}>
                               <TableCell className="max-w-sm">
                                 <div className="flex items-center gap-2">
-                                  <StatusBadge
-                                    kind="ticket"
-                                    value={ticket.status}
+                                  <span
+                                    className="size-1.5 shrink-0 rounded-full bg-status-pending"
+                                    aria-hidden="true"
                                   />
                                   <span className="truncate font-medium">
                                     {ticket.title}
@@ -301,8 +313,11 @@ export function DispatcherOverview() {
                               <TableCell className="truncate">
                                 {ticket.team.name}
                               </TableCell>
-                              <TableCell className="font-mono text-xs text-muted-foreground">
-                                {formatDateTime(ticket.updated_at)}
+                              <TableCell>
+                                <QueueWait
+                                  updatedAt={ticket.updated_at}
+                                  now={now}
+                                />
                               </TableCell>
                               <TableCell>
                                 <Button
@@ -337,13 +352,22 @@ export function DispatcherOverview() {
                             <p className="line-clamp-2 text-sm font-medium">
                               {ticket.title}
                             </p>
-                            <StatusBadge kind="ticket" value={ticket.status} />
+                            <span
+                              className="mt-1.5 size-1.5 shrink-0 rounded-full bg-status-pending"
+                              aria-hidden="true"
+                            />
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {ticket.team.name} ·{" "}
                             {ticket.submitter.full_name ||
                               ticket.submitter.email}
                           </p>
+                          <div className="mt-2">
+                            <QueueWait
+                              updatedAt={ticket.updated_at}
+                              now={now}
+                            />
+                          </div>
                         </Link>
                       ))}
                     </div>
@@ -370,6 +394,21 @@ export function DispatcherOverview() {
                     </p>
                   ) : (
                     <div className="space-y-3">
+                      <div className="grid grid-cols-3 gap-2 border-b pb-3 text-xs">
+                        <WorkloadDatum
+                          label="最高"
+                          value={workloadSummary.max}
+                        />
+                        <WorkloadDatum
+                          label="最低"
+                          value={workloadSummary.min}
+                        />
+                        <WorkloadDatum
+                          label="差值"
+                          value={workloadSummary.delta}
+                          warning={workloadSummary.skewed}
+                        />
+                      </div>
                       {workload.slice(0, 6).map((item) => (
                         <div key={item.name}>
                           <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
@@ -382,7 +421,13 @@ export function DispatcherOverview() {
                           </div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                             <div
-                              className="h-full rounded-full bg-primary"
+                              className={cn(
+                                "h-full rounded-full",
+                                workloadSummary.skewed &&
+                                  item.load === workloadSummary.max
+                                  ? "bg-amber-500"
+                                  : "bg-primary",
+                              )}
                               style={{
                                 width: `${workloadBarWidth(item.load, maxLoad)}%`,
                               }}
@@ -413,15 +458,36 @@ export function DispatcherOverview() {
                   ) : (
                     <div className="space-y-2">
                       {snapshot.exceptions.map((item) => (
-                        <div
+                        <Link
                           key={item.code}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/6 px-3 py-2.5"
+                          to={
+                            item.code === "WORKLOAD_SKEW"
+                              ? "/dispatch"
+                              : "/tickets"
+                          }
+                          search={
+                            item.code === "PENDING_OVER_24H"
+                              ? {
+                                  status: "PENDING_ASSIGNMENT",
+                                  sort: "updated_at:asc",
+                                }
+                              : item.code === "CONFIRMATION_OVER_48H"
+                                ? {
+                                    status: "PENDING_CONFIRMATION",
+                                    sort: "updated_at:asc",
+                                  }
+                                : undefined
+                          }
+                          className="group flex min-h-11 items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/6 px-3 py-2.5 transition-colors hover:bg-amber-500/10 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                         >
                           <span className="text-sm">{item.label}</span>
-                          <span className="font-mono text-sm font-semibold tabular-nums">
-                            {item.count}
+                          <span className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-semibold tabular-nums">
+                              {item.count}
+                            </span>
+                            <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                           </span>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   )}
@@ -431,6 +497,51 @@ export function DispatcherOverview() {
           </div>
         </>
       ) : null}
+    </div>
+  )
+}
+
+function QueueWait({ updatedAt, now }: { updatedAt: string; now: Date }) {
+  const overdue = isPendingOverdue(updatedAt, now)
+  return (
+    <div
+      className={cn(
+        "text-xs",
+        overdue ? "font-medium text-amber-800 dark:text-amber-200" : "",
+      )}
+      data-testid="queue-wait-time"
+    >
+      <time dateTime={updatedAt}>{formatWaitDuration(updatedAt, now)}</time>
+      {overdue ? (
+        <span className="mt-0.5 block text-[11px]">已超过 24 小时</span>
+      ) : null}
+      <span className="mt-0.5 block text-[11px] text-muted-foreground">
+        更新于 {formatDateTime(updatedAt)}
+      </span>
+    </div>
+  )
+}
+
+function WorkloadDatum({
+  label,
+  value,
+  warning = false,
+}: {
+  label: string
+  value: number
+  warning?: boolean
+}) {
+  return (
+    <div>
+      <p className="text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "mt-0.5 font-mono font-semibold tabular-nums",
+          warning ? "text-amber-700 dark:text-amber-300" : "",
+        )}
+      >
+        {value}
+      </p>
     </div>
   )
 }

@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest"
 import {
   buildOverviewSnapshot,
   collectTicketPages,
+  formatWaitDuration,
+  isPendingOverdue,
   type OverviewTicket,
+  summarizeWorkload,
   workloadBarWidth,
 } from "./overview-data"
 
@@ -78,5 +81,30 @@ describe("overview data", () => {
   it("does not draw a positive workload bar for zero load", () => {
     expect(workloadBarWidth(0, 4)).toBe(0)
     expect(workloadBarWidth(1, 100)).toBe(8)
+  })
+
+  it("formats queue wait time for scanning and overdue work", () => {
+    const now = new Date("2026-11-23T12:34:00Z")
+
+    expect(formatWaitDuration("2026-11-23T12:33:40Z", now)).toBe("刚刚")
+    expect(formatWaitDuration("2026-11-23T10:04:00Z", now)).toBe("2 小时 30 分")
+    expect(formatWaitDuration("2026-11-20T08:30:00Z", now)).toBe("3 天 4 小时")
+    expect(isPendingOverdue("2026-11-22T11:00:00Z", now)).toBe(true)
+    expect(isPendingOverdue("2026-11-23T11:00:00Z", now)).toBe(false)
+  })
+
+  it("summarizes workload range and skew", () => {
+    expect(summarizeWorkload([4, 1, 2])).toEqual({
+      min: 1,
+      max: 4,
+      delta: 3,
+      skewed: true,
+    })
+    expect(summarizeWorkload([])).toEqual({
+      min: 0,
+      max: 0,
+      delta: 0,
+      skewed: false,
+    })
   })
 })

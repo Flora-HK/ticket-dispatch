@@ -47,7 +47,14 @@ import {
 import { cn } from "@/lib/utils"
 import { extractErrorMessage, isConflictError } from "@/utils"
 
+import {
+  buildCandidateComparisons,
+  dispatchActionLabel,
+  formatCandidateLastAssignedAt,
+} from "./dispatch-data"
+
 type DispatchMode = "MANUAL" | "AUTO"
+type MobilePane = "queue" | "detail" | "dispatch"
 
 export function DispatchWorkbench({
   initialTicketId,
@@ -62,6 +69,9 @@ export function DispatchWorkbench({
   const [selectedHandlerId, setSelectedHandlerId] = useState("")
   const [reason, setReason] = useState("")
   const [mode, setMode] = useState<DispatchMode>("MANUAL")
+  const [mobilePane, setMobilePane] = useState<MobilePane>(
+    initialTicketId ? "detail" : "queue",
+  )
   const [explanation, setExplanation] = useState<DispatchResponse | null>(null)
   const [conflict, setConflict] = useState<{
     message: string
@@ -197,13 +207,18 @@ export function DispatchWorkbench({
     (mode === "AUTO" || Boolean(selectedHandlerId)) &&
     (!needReason || Boolean(reason.trim()))
 
+  const candidateComparisons = useMemo(
+    () => buildCandidateComparisons(candidates.data?.items ?? []),
+    [candidates.data],
+  )
   const selectedCandidate = useMemo(
     () =>
-      candidates.data?.items.find(
-        (candidate) => candidate.handler_id === selectedHandlerId,
+      candidateComparisons.find(
+        (candidate) => candidate.handlerId === selectedHandlerId,
       ),
-    [candidates.data, selectedHandlerId],
+    [candidateComparisons, selectedHandlerId],
   )
+  const actionLabel = dispatchActionLabel(mode, selectedCandidate?.name ?? null)
 
   const chooseTicket = (ticketId: string) => {
     setSelectedId(ticketId)
@@ -211,6 +226,7 @@ export function DispatchWorkbench({
     setReason("")
     setExplanation(null)
     setConflict(null)
+    setMobilePane("detail")
     void navigate({
       to: "/dispatch",
       search: { ticket: ticketId },
@@ -249,13 +265,64 @@ export function DispatchWorkbench({
         />
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px] xl:items-start">
-        <Card className="overflow-hidden py-0">
+      <div
+        className="sticky top-14 z-10 -mx-1 flex flex-col gap-2 rounded-lg border bg-background/95 p-1.5 backdrop-blur-sm lg:hidden"
+        role="tablist"
+        aria-label="派发步骤"
+      >
+        <div className="grid grid-cols-3 gap-1">
+          {(
+            [
+              ["queue", "队列", queueItems.length],
+              ["detail", "详情", null],
+              ["dispatch", "派发", candidateComparisons.length || null],
+            ] as const
+          ).map(([pane, label, count]) => (
+            <button
+              key={pane}
+              id={`dispatch-tab-${pane}`}
+              type="button"
+              role="tab"
+              aria-selected={mobilePane === pane}
+              aria-controls={`dispatch-panel-${pane}`}
+              className={cn(
+                "min-h-11 rounded-md px-2 text-sm font-medium transition-colors",
+                mobilePane === pane
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted",
+              )}
+              onClick={() => setMobilePane(pane)}
+            >
+              {label}
+              {count !== null ? (
+                <span className="ml-1.5 font-mono text-xs">{count}</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+        {selectedTicket ? (
+          <div className="flex min-w-0 items-center gap-2 px-2 pb-1 text-xs">
+            <StatusBadge kind="ticket" value={selectedTicket.status} />
+            <span className="truncate font-medium">{selectedTicket.title}</span>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start xl:grid-cols-[220px_minmax(0,1fr)_320px]">
+        <Card
+          id="dispatch-panel-queue"
+          role="tabpanel"
+          aria-labelledby="dispatch-tab-queue"
+          className={cn(
+            "overflow-hidden py-0 lg:row-span-2 xl:row-span-1",
+            mobilePane !== "queue" && "hidden lg:flex",
+          )}
+        >
           <CardHeader className="border-b py-4">
             <CardTitle>待派发队列</CardTitle>
             <CardDescription>{queueItems.length} 条可见待办</CardDescription>
           </CardHeader>
-          <CardContent className="max-h-[360px] overflow-auto p-0 xl:max-h-[720px]">
+          <CardContent className="p-0 lg:max-h-[720px] lg:overflow-auto">
             {queue.isLoading ? (
               <LoadingRows rows={6} />
             ) : queue.isError ? (
@@ -311,7 +378,15 @@ export function DispatchWorkbench({
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card
+          id="dispatch-panel-detail"
+          role="tabpanel"
+          aria-labelledby="dispatch-tab-detail"
+          className={cn(
+            "min-w-0 overflow-hidden lg:col-start-2 lg:row-start-1 xl:col-start-2",
+            mobilePane !== "detail" && "hidden lg:flex",
+          )}
+        >
           {!selectedId ? (
             <EmptyState
               title="选择一张工单"
@@ -370,12 +445,27 @@ export function DispatchWorkbench({
                     </dd>
                   </div>
                 </dl>
+                <Button
+                  className="w-full lg:hidden"
+                  onClick={() => setMobilePane("dispatch")}
+                >
+                  比较候选并派发
+                  <ArrowRight />
+                </Button>
               </CardContent>
             </>
           )}
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card
+          id="dispatch-panel-dispatch"
+          role="tabpanel"
+          aria-labelledby="dispatch-tab-dispatch"
+          className={cn(
+            "min-w-0 overflow-hidden lg:col-start-2 lg:row-start-2 xl:sticky xl:top-20 xl:col-start-3 xl:row-start-1",
+            mobilePane !== "dispatch" && "hidden lg:flex",
+          )}
+        >
           <CardHeader className="border-b py-4">
             <CardTitle>派发决策</CardTitle>
             <CardDescription>
@@ -428,25 +518,41 @@ export function DispatchWorkbench({
                 当前 Team 没有合格处理人。
               </div>
             ) : (
-              <div className="space-y-2" data-testid="candidate-ranking">
-                {candidates.data?.items.map((candidate) => {
-                  const selected = candidate.handler_id === selectedHandlerId
+              <div
+                className="space-y-2"
+                data-testid="candidate-ranking"
+                role="radiogroup"
+                aria-label="候选处理人"
+              >
+                <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span>按服务端排名显示</span>
+                  <span>相对最低负载</span>
+                </div>
+                {candidateComparisons.map((candidate) => {
+                  const selected = candidate.handlerId === selectedHandlerId
                   return (
-                    <button
-                      key={candidate.handler_id}
-                      type="button"
-                      disabled={mode !== "MANUAL"}
-                      onClick={() => setSelectedHandlerId(candidate.handler_id)}
+                    <label
+                      key={candidate.handlerId}
                       className={cn(
-                        "flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors",
+                        "grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-lg border p-3 text-left transition-colors focus-within:ring-[3px] focus-within:ring-ring/50",
                         selected
                           ? "border-primary bg-primary/7"
                           : "hover:bg-muted/50",
                         mode !== "MANUAL" && "opacity-65",
                       )}
-                      aria-pressed={selected}
                     >
-                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted">
+                      <input
+                        className="sr-only"
+                        type="radio"
+                        name={`dispatch-candidate-${selectedId}`}
+                        value={candidate.handlerId}
+                        checked={selected}
+                        disabled={mode !== "MANUAL"}
+                        onChange={() =>
+                          setSelectedHandlerId(candidate.handlerId)
+                        }
+                      />
+                      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md bg-muted">
                         {selected ? (
                           <Check className="size-4 text-primary" />
                         ) : (
@@ -454,16 +560,39 @@ export function DispatchWorkbench({
                         )}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {candidate.handler.full_name ||
-                            candidate.handler.email}
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-mono text-[11px] text-muted-foreground">
+                            #{candidate.rank}
+                          </span>
+                          <span className="truncate text-sm font-medium">
+                            {candidate.name}
+                          </span>
                         </span>
-                        <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                          #{candidate.rank} · 活动负载{" "}
-                          {candidate.open_ticket_count}
+                        <span className="mt-1 block truncate text-[11px] text-muted-foreground">
+                          最近派发：
+                          {formatCandidateLastAssignedAt(
+                            candidate.lastAssignedAt,
+                          )}
                         </span>
                       </span>
-                    </button>
+                      <span className="text-right">
+                        <span className="block font-mono text-sm font-semibold tabular-nums">
+                          负载 {candidate.load}
+                        </span>
+                        <span
+                          className={cn(
+                            "mt-1 block font-mono text-[11px]",
+                            candidate.loadDelta === 0
+                              ? "text-emerald-700 dark:text-emerald-300"
+                              : "text-amber-700 dark:text-amber-300",
+                          )}
+                        >
+                          {candidate.loadDelta === 0
+                            ? "最低负载"
+                            : `+${candidate.loadDelta}`}
+                        </span>
+                      </span>
+                    </label>
                   )
                 })}
               </div>
@@ -509,18 +638,13 @@ export function DispatchWorkbench({
               }}
             >
               {mode === "MANUAL" ? <ArrowRight /> : <Bot />}
-              {dispatch.isPending
-                ? "正在提交…"
-                : mode === "MANUAL"
-                  ? "确认人工派发"
-                  : "按最低负载自动派发"}
+              {dispatch.isPending ? "正在提交…" : actionLabel}
             </Button>
 
             {mode === "MANUAL" && selectedCandidate ? (
               <p className="text-center text-xs text-muted-foreground">
-                将派发给{" "}
-                {selectedCandidate.handler.full_name ||
-                  selectedCandidate.handler.email}
+                选中负载 {selectedCandidate.load} · 相对最低负载 +
+                {selectedCandidate.loadDelta}
               </p>
             ) : null}
 

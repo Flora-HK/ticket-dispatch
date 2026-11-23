@@ -1,10 +1,8 @@
 import { type APIRequestContext, expect, test } from "@playwright/test"
 
-import { firstSuperuser, firstSuperuserPassword } from "./config.ts"
+import { apiBaseUrl, firstSuperuser, firstSuperuserPassword } from "./config.ts"
 import { randomEmail, randomPassword, randomTeamName } from "./utils/random.ts"
 import { logInUser } from "./utils/user.ts"
-
-const apiBaseUrl = "http://localhost:8000/api/v1"
 
 async function adminToken(request: APIRequestContext) {
   const response = await request.post(`${apiBaseUrl}/login/access-token`, {
@@ -104,11 +102,56 @@ test("409 conflict refreshes the ticket before retrying a comment", async ({
   await expect(page.getByText("刷新版本后成功提交")).toBeVisible()
 })
 
+test("Dispatcher completes the automatic dispatch flow", async ({
+  page,
+  request,
+}, testInfo) => {
+  const token = await adminToken(request)
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Idempotency-Key": crypto.randomUUID(),
+  }
+  const teamsResponse = await request.get(`${apiBaseUrl}/teams?limit=100`, {
+    headers,
+  })
+  expect(teamsResponse.status()).toBe(200)
+  const teams = (await teamsResponse.json()).items as Array<{
+    id: string
+    name: string
+  }>
+  const team = teams.find((item) => item.name === "运营支持") ?? teams[0]
+  expect(team).toBeTruthy()
+
+  const createdTicket = await request.post(`${apiBaseUrl}/tickets`, {
+    headers,
+    data: {
+      team_id: team.id,
+      title: `[E2E] 自动派发 ${Date.now()}`,
+      description: "通过 Playwright 验证最低负载自动派发主链路。",
+    },
+  })
+  expect(createdTicket.status()).toBe(201)
+  const ticket = await createdTicket.json()
+
+  await page.goto(`/tickets/${ticket.id}`)
+  await page.getByRole("link", { name: "进入派发工作台" }).click()
+  if (testInfo.project.name === "mobile-chromium") {
+    await page.getByRole("tab", { name: /派发/ }).click()
+  }
+  await page.getByRole("button", { name: "自动派发", exact: true }).click()
+  await page.getByRole("button", { name: "按最低负载自动派发" }).click()
+
+  await expect(page.getByTestId("dispatch-explanation")).toBeVisible()
+  await expect(
+    page.locator("[data-status='ASSIGNED']:visible").first(),
+  ).toBeVisible()
+})
+
 test("Admin and handler complete the end-to-end ticket flow", async ({
   page,
   browser,
   request,
-}) => {
+}, testInfo) => {
   test.setTimeout(90_000)
   const token = await adminToken(request)
   const authHeaders = { Authorization: `Bearer ${token}` }
@@ -172,9 +215,18 @@ test("Admin and handler complete the end-to-end ticket flow", async ({
   expect(ticketId).toBeTruthy()
 
   await page.getByRole("link", { name: "进入派发工作台" }).click()
-  await page.getByRole("button", { name: new RegExp(handlerName) }).click()
-  await page.getByRole("button", { name: "确认人工派发" }).click()
-  await expect(page.getByText("待接受")).toBeVisible()
+  if (testInfo.project.name === "mobile-chromium") {
+    await page.getByRole("tab", { name: /派发/ }).click()
+  }
+  await page
+    .getByRole("radiogroup", { name: "候选处理人" })
+    .locator("label")
+    .filter({ hasText: handlerName })
+    .click()
+  await page.getByRole("button", { name: `派发给 ${handlerName}` }).click()
+  await expect(
+    page.locator("[data-status='ASSIGNED']:visible").first(),
+  ).toBeVisible()
   await page.goto(`/tickets/${ticketId}`)
 
   const handlerContext = await browser.newContext({

@@ -26,6 +26,48 @@ export function workloadBarWidth(load: number, maxLoad: number): number {
   return Math.max(8, (load / Math.max(1, maxLoad)) * 100)
 }
 
+function elapsedMinutes(updatedAt: string, now: Date): number {
+  return Math.max(
+    0,
+    Math.floor((now.getTime() - new Date(updatedAt).getTime()) / 60_000),
+  )
+}
+
+export function formatWaitDuration(
+  updatedAt: string,
+  now = new Date(),
+): string {
+  const minutes = elapsedMinutes(updatedAt, now)
+  if (minutes < 1) return "刚刚"
+  if (minutes < 60) return `${minutes} 分钟`
+
+  const totalHours = Math.floor(minutes / 60)
+  if (totalHours < 24) {
+    const remainder = minutes % 60
+    return remainder
+      ? `${totalHours} 小时 ${remainder} 分`
+      : `${totalHours} 小时`
+  }
+
+  const days = Math.floor(totalHours / 24)
+  const remainder = totalHours % 24
+  return remainder ? `${days} 天 ${remainder} 小时` : `${days} 天`
+}
+
+export function isPendingOverdue(updatedAt: string, now = new Date()): boolean {
+  return elapsedMinutes(updatedAt, now) >= 24 * 60
+}
+
+export function summarizeWorkload(loads: readonly number[]) {
+  if (loads.length === 0) {
+    return { min: 0, max: 0, delta: 0, skewed: false }
+  }
+  const min = Math.min(...loads)
+  const max = Math.max(...loads)
+  const delta = max - min
+  return { min, max, delta, skewed: delta >= 3 }
+}
+
 export async function collectTicketPages(
   fetchPage: (cursor?: string | null) => Promise<TicketPage>,
   options: { maxItems: number },
