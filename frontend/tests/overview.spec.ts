@@ -44,6 +44,30 @@ test("dispatcher overview exposes the A, B and C work areas", async ({
   await expect(page.getByRole("link", { name: /派发工作台/ })).toBeVisible()
 })
 
+test("clicking a priority queue row opens the ticket detail", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "desktop table interaction")
+  await page.goto("/")
+
+  const queue = page.getByTestId("priority-queue")
+  const tableOverflow = await queue
+    .locator("[data-slot='table-container']")
+    .evaluate((element) => element.scrollWidth - element.clientWidth)
+  expect(tableOverflow).toBe(0)
+
+  const row = queue.locator("tbody tr").first()
+  const teamCell = await row.locator("td").nth(1).boundingBox()
+  if (!teamCell) throw new Error("Priority queue row is not visible")
+  await page.mouse.click(
+    teamCell.x + teamCell.width / 2,
+    teamCell.y + teamCell.height / 2,
+  )
+
+  await expect(page).toHaveURL(/\/tickets\/[0-9a-f-]+$/)
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
+})
+
 test("dispatch workbench offers candidate comparison and auto mode", async ({
   page,
 }, testInfo) => {

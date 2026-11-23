@@ -4,7 +4,19 @@ from app import crud
 from app.core.config import settings
 from app.models import User, UserCreate
 
-engine = create_engine(str(settings.DATABASE_URL), pool_pre_ping=True)
+database_timeout_options = " ".join(
+    (
+        f"-c statement_timeout={settings.DB_STATEMENT_TIMEOUT_MS}",
+        f"-c lock_timeout={settings.DB_LOCK_TIMEOUT_MS}",
+        "-c idle_in_transaction_session_timeout="
+        f"{settings.DB_IDLE_TRANSACTION_TIMEOUT_MS}",
+    )
+)
+engine = create_engine(
+    str(settings.DATABASE_URL),
+    pool_pre_ping=True,
+    connect_args={"options": database_timeout_options},
+)
 
 
 # make sure all SQLModel models are imported (app.models) before initializing DB

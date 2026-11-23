@@ -732,6 +732,7 @@ class ErrorDetails(SQLModel):
     ticket_status: TicketStatus | None = None
     candidate_count: int | None = None
     assignment_changed: bool | None = None
+    retryable: bool | None = None
     fields: list[FieldViolation] | None = None
 
 

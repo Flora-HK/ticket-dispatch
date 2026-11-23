@@ -1,145 +1,80 @@
-# FastAPI Project - Backend
+# Backend · Dispatch Desk
 
-## Requirements
+FastAPI 后端负责认证、RBAC、工单状态机、派发策略、PostgreSQL 事务、幂等、通知、时间线与审计。
 
-* [Docker](https://www.docker.com/).
-* [uv](https://docs.astral.sh/uv/) for Python package and environment management.
+项目总览、完整启动流程和测试基线以 [根 README](../README.md) 为准；本文只说明后端目录边界和常用命令。
 
-## Local Development
+## 目录职责
 
-Run the backend locally and connect it to PostgreSQL in Docker Compose.
+| 路径              | 职责                                               |
+| ----------------- | -------------------------------------------------- |
+| `app/api/routes/` | HTTP 路由、依赖注入、状态码和 OpenAPI 响应         |
+| `app/api/deps.py` | JWT、ActorContext、幂等键和角色依赖                |
+| `app/services/`   | 创建、派发、接受、拒绝、完成、关闭、重开和治理用例 |
+| `app/core/`       | 配置、数据库、安全、统一错误、初始化和演示数据     |
+| `app/models.py`   | SQLModel、请求/响应模型、枚举与数据库约束          |
+| `app/alembic/`    | PostgreSQL 迁移和 AuditLog 不可变 Trigger          |
+| `tests/`          | API、模型、迁移、并发、事务和 OpenAPI 契约测试     |
 
-From the project root, start PostgreSQL and Mailpit:
+## 本地运行
 
-```console
-$ docker compose up -d db mailpit
+以下命令假定已按根 README 完成 Docker、`.env` 和依赖准备。
+
+```powershell
+Set-Location E:\Projects\ticket-dispatch
+uv sync --package app
+
+Set-Location .\backend
+..\.venv\Scripts\python.exe -m alembic upgrade head
+..\.venv\Scripts\python.exe app\initial_data.py
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Then, from `./backend/`, install the dependencies, prepare the database, and start the development server:
+后端地址：
 
-```console
-$ uv sync
-$ uv run bash scripts/prestart.sh
-$ uv run fastapi dev
+- API：<http://localhost:8000/api/v1>
+- Swagger UI：<http://localhost:8000/docs>
+- 存活检查：<http://localhost:8000/api/v1/health/live>
+- 就绪检查：<http://localhost:8000/api/v1/health/ready>
+
+## 数据库与迁移
+
+数据库固定使用 PostgreSQL。测试库与开发库必须隔离，不能改用 SQLite 替代 PostgreSQL 并发和 Trigger 验证。
+
+创建迁移：
+
+```powershell
+Set-Location E:\Projects\ticket-dispatch\backend
+..\.venv\Scripts\alembic.exe revision --autogenerate -m "describe_change"
 ```
 
-The API is available at `http://localhost:8000`, with automatic interactive docs at `http://localhost:8000/docs`.
+升级并检查模型漂移：
 
-## General Workflow
-
-Run backend commands from `./backend/` with `uv run`. Make sure your editor uses the Python interpreter at `.venv/bin/python` in the project root.
-
-Modify or add SQLModel models for data and SQL tables in `./backend/app/models.py`, API endpoints in `./backend/app/api/`, CRUD (Create, Read, Update, Delete) utils in `./backend/app/crud.py`.
-
-## VS Code
-
-There are already configurations in place to run the backend through the VS Code debugger, so that you can use breakpoints, pause and explore variables, etc.
-
-The setup is also already configured so you can run the tests through the VS Code Python tests tab.
-
-## Full Stack with Docker Compose
-
-To run the backend and built frontend in Docker Compose:
-
-```console
-$ docker compose run --rm backend bash scripts/prestart.sh
-$ docker compose watch
+```powershell
+..\.venv\Scripts\alembic.exe upgrade head
+..\.venv\Scripts\alembic.exe check
 ```
 
-The application is available at `http://localhost:8000`.
+## 关键业务约束
 
-### Docker Compose Override
+- JWT 不携带角色，授权时从数据库加载最新角色。
+- 工单状态只能通过显式 action 接口变化。
+- 派发锁顺序为“幂等锁 → Team 建议锁 → Ticket 行锁”。
+- 同一 Ticket 最多存在一条 `ASSIGNED` 或 `ACCEPTED` Assignment。
+- 关键写请求要求 `Idempotency-Key` 和适用的期望版本。
+- 业务写入、通知、审计和幂等结果在同一事务中提交。
+- AuditLog 禁止应用修改和删除；数据库 Trigger 是最终边界。
+- 业务时间线只输出脱敏摘要，不暴露原始审计 detail。
 
-The `compose.override.yml` file contains local settings for published ports, source synchronization, automatic image rebuilds, and backend reloads. Docker Compose applies it automatically when you run `docker compose` without an explicit file list.
+## 质量门禁
 
-To open a shell in the backend container:
-
-```console
-$ docker compose exec backend bash
+```powershell
+Set-Location E:\Projects\ticket-dispatch\backend
+..\.venv\Scripts\ruff.exe check app tests
+..\.venv\Scripts\ty.exe check --python ..\.venv --project . app
+..\.venv\Scripts\pyright.exe --pythonpath ..\.venv\Scripts\python.exe app
+..\.venv\Scripts\python.exe -m pytest
+..\.venv\Scripts\alembic.exe check
 ```
 
-## Backend Tests
-
-To test the backend from the `backend` directory, run:
-
-```console
-$ uv run bash scripts/test.sh
-```
-
-The tests run with Pytest. Modify existing tests or add new ones in `./backend/tests/`.
-
-If you use GitHub Actions, the tests will run automatically.
-
-### Test a Running Stack
-
-If your stack is already up and you just want to run the tests, you can use:
-
-```bash
-docker compose exec backend bash scripts/tests-start.sh
-```
-
-The `/app/backend/scripts/tests-start.sh` script calls `pytest`. If you need to pass extra arguments to `pytest`, you can pass them to that command and they will be forwarded.
-
-For example, to stop on first error:
-
-```bash
-docker compose exec backend bash scripts/tests-start.sh -x
-```
-
-### Test Coverage
-
-When the tests run, they generate `htmlcov/index.html`. Open it in your browser to inspect the test coverage.
-
-## Migrations
-
-Make sure you create a revision of your models and upgrade the database with that revision every time you change them. From the `backend` directory, use `uv` to run Alembic against the PostgreSQL container:
-
-* Alembic is already configured to import your SQLModel models from `./backend/app/models.py`.
-
-* After changing a model (for example, adding a column), create a revision:
-
-```console
-$ uv run alembic revision --autogenerate -m "Add column last_name to User model"
-```
-
-* Commit to the git repository the files generated in the alembic directory.
-
-* After creating the revision, run the migration in the database (this is what will actually change the database):
-
-```console
-$ uv run alembic upgrade head
-```
-
-If you don't want to use migrations at all, uncomment the lines in the file at `./backend/app/core/db.py` that end in:
-
-```python
-SQLModel.metadata.create_all(engine)
-```
-
-and comment the line in the file `scripts/prestart.sh` that contains:
-
-```console
-$ alembic upgrade head
-```
-
-If you don't want to start with the default models and want to remove them / modify them, from the beginning, without having any previous revision, you can remove the revision files (`.py` Python files) under `./backend/app/alembic/versions/`. And then create a first migration as described above.
-
-## Email Templates
-
-The email templates are written with [React Email](https://react.email) in `./packages/react-email/`. The `emails` directory holds one component per email and the `ui` directory holds the shared components (layout, heading, button, link, callout).
-
-The rendered HTML in `./backend/app/email-templates/` is generated from those components. It is what the application sends and should not be edited by hand.
-
-To preview the emails while editing them, start the dev server from the root of the project:
-
-```console
-$ bun run email:dev
-```
-
-Values coming from the backend are declared as Jinja placeholders in the component props, for example `username = "{{ username }}"`. The context for each email is built in `generate_*_email()` in `./backend/app/utils.py`, so a new placeholder needs to be added there too.
-
-Once you are done, regenerate the templates used by the application:
-
-```console
-$ bun run email:export
-```
+OpenAPI 契约快照位于 `tests/contracts/openapi.json`。修改公开 API 后，应同步更新契约测试与前端生成客户端。

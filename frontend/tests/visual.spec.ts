@@ -1,6 +1,6 @@
 import { test } from "@playwright/test"
 
-import { firstSuperuser, firstSuperuserPassword } from "./config.ts"
+import { apiBaseUrl, firstSuperuser, firstSuperuserPassword } from "./config.ts"
 
 const pages = [
   ["overview", "/", true],
@@ -24,40 +24,40 @@ async function signInAsDispatcher(page: import("@playwright/test").Page) {
 
 for (const [name, path, asDispatcher] of pages) {
   test(`capture ${name}`, async ({ page }, testInfo) => {
+    const screenshotProject = testInfo.project.name.replace(/^visual-/, "")
     if (asDispatcher) await signInAsDispatcher(page)
     await page.goto(path)
     await page.waitForLoadState("networkidle")
     await page.screenshot({
-      path: `playwright/screenshots/${name}-${testInfo.project.name}.png`,
+      path: `playwright/screenshots/${name}-${screenshotProject}.png`,
       fullPage: true,
     })
   })
 }
 
 test("capture dark overview", async ({ page }, testInfo) => {
+  const screenshotProject = testInfo.project.name.replace(/^visual-/, "")
   await signInAsDispatcher(page)
   await page.evaluate(() => localStorage.setItem("vite-ui-theme", "dark"))
   await page.reload()
   await page.waitForLoadState("networkidle")
   await page.screenshot({
-    path: `playwright/screenshots/overview-dark-${testInfo.project.name}.png`,
+    path: `playwright/screenshots/overview-dark-${screenshotProject}.png`,
     fullPage: true,
   })
 })
 
 test("capture ticket detail", async ({ page, request }, testInfo) => {
-  const login = await request.post(
-    "http://localhost:8000/api/v1/login/access-token",
-    {
-      form: {
-        username: firstSuperuser,
-        password: firstSuperuserPassword,
-      },
+  const screenshotProject = testInfo.project.name.replace(/^visual-/, "")
+  const login = await request.post(`${apiBaseUrl}/login/access-token`, {
+    form: {
+      username: firstSuperuser,
+      password: firstSuperuserPassword,
     },
-  )
+  })
   const token = (await login.json()).access_token as string
   const tickets = await request.get(
-    "http://localhost:8000/api/v1/tickets?limit=1&sort=updated_at:desc",
+    `${apiBaseUrl}/tickets?limit=1&sort=updated_at:desc`,
     { headers: { Authorization: `Bearer ${token}` } },
   )
   const ticket = (await tickets.json()).items[0] as { id: string }
@@ -66,7 +66,7 @@ test("capture ticket detail", async ({ page, request }, testInfo) => {
   await page.goto(`/tickets/${ticket.id}`)
   await page.waitForLoadState("networkidle")
   await page.screenshot({
-    path: `playwright/screenshots/ticket-detail-${testInfo.project.name}.png`,
+    path: `playwright/screenshots/ticket-detail-${screenshotProject}.png`,
     fullPage: true,
   })
 })

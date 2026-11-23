@@ -8,3 +8,4 @@ backend/app/frontend/
 /blob-report/
 /playwright/.cache/
 /docs/
+*.dump

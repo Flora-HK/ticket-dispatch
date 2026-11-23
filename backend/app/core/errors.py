@@ -4,6 +4,9 @@ from typing import Any
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError
+
+from app.core.logging import request_logger
 
 
 class APIError(Exception):
@@ -26,12 +29,41 @@ class APIError(Exception):
         self.headers = headers
 
 
+_DATABASE_ERROR_CONTRACT = {
+    "55P03": (
+        "DATABASE_LOCK_TIMEOUT",
+        "The database resource is temporarily locked. Please retry.",
+    ),
+    "57014": (
+        "DATABASE_STATEMENT_TIMEOUT",
+        "The database operation exceeded its allowed time.",
+    ),
+    "40001": (
+        "DATABASE_RETRYABLE_TRANSACTION",
+        "The database transaction must be retried.",
+    ),
+    "40P01": (
+        "DATABASE_RETRYABLE_TRANSACTION",
+        "The database transaction must be retried.",
+    ),
+}
+
+
+def _sqlstate(exc: OperationalError) -> str | None:
+    sqlstate = getattr(exc.orig, "sqlstate", None)
+    if sqlstate:
+        return str(sqlstate)
+    diagnostic = getattr(exc.orig, "diag", None)
+    sqlstate = getattr(diagnostic, "sqlstate", None)
+    return str(sqlstate) if sqlstate else None
+
+
 async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:
     """输出契约规定的 error 包装，并复用中间件生成的 request_id。"""
 
     if not isinstance(exc, APIError):
         raise exc
-    request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
+    request_id = str(getattr(request.state, "request_id", uuid.uuid4()))
     response = JSONResponse(
         status_code=exc.status_code,
         content={
@@ -48,6 +80,59 @@ async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:
     return response
 
 
+async def database_error_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Map transient database failures to a stable retryable response."""
+
+    if not isinstance(exc, OperationalError):
+        raise exc
+    code, message = _DATABASE_ERROR_CONTRACT.get(
+        _sqlstate(exc) or "",
+        (
+            "SERVICE_UNAVAILABLE",
+            "The database is temporarily unavailable. Please retry.",
+        ),
+    )
+    return await api_error_handler(
+        request,
+        APIError(
+            status_code=503,
+            code=code,
+            message=message,
+            details={"retryable": True},
+            headers={"Retry-After": "1"},
+        ),
+    )
+
+
+async def unhandled_exception_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Return a safe contract response without exposing internal details."""
+
+    request_id = str(getattr(request.state, "request_id", uuid.uuid4()))
+    request_logger.error(
+        "unhandled_exception",
+        extra={
+            "event": "unhandled_exception",
+            "request_id": request_id,
+            "exception_type": type(exc).__name__,
+        },
+        exc_info=(type(exc), exc, exc.__traceback__),
+    )
+    return await api_error_handler(
+        request,
+        APIError(
+            status_code=500,
+            code="INTERNAL_SERVER_ERROR",
+            message="An unexpected error occurred.",
+        ),
+    )
+
+
 async def request_validation_error_handler(
     request: Request,
     exc: Exception,
@@ -56,7 +141,7 @@ async def request_validation_error_handler(
 
     if not isinstance(exc, RequestValidationError):
         raise exc
-    request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
+    request_id = str(getattr(request.state, "request_id", uuid.uuid4()))
     fields = [
         {
             "loc": list(error["loc"]),

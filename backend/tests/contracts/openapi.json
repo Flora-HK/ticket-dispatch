@@ -1095,6 +1095,17 @@
             ],
             "title": "Fields"
           },
+          "retryable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retryable"
+          },
           "ticket_id": {
             "anyOf": [
               {

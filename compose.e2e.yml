@@ -1,0 +1,12 @@
+services:
+  backend:
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Variable not set}@db:5432/app_e2e
+
+  playwright:
+    depends_on:
+      backend:
+        condition: service_healthy
+        restart: true
+      mailpit:
+        condition: service_started

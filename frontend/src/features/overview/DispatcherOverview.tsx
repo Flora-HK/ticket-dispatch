@@ -288,14 +288,22 @@ export function DispatcherOverview() {
                           <TableRow>
                             <TableHead>工单</TableHead>
                             <TableHead className="w-28">Team</TableHead>
-                            <TableHead className="w-36">等待</TableHead>
-                            <TableHead className="w-10" />
+                            <TableHead className="w-52">等待</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {snapshot.pending.slice(0, 7).map((ticket) => (
-                            <TableRow key={ticket.id}>
+                            <TableRow
+                              key={ticket.id}
+                              className="relative cursor-pointer focus-within:bg-muted/50"
+                            >
                               <TableCell className="max-w-sm">
+                                <Link
+                                  to="/tickets/$ticketId"
+                                  params={{ ticketId: ticket.id }}
+                                  aria-label={`打开工单 ${ticket.title}`}
+                                  className="absolute inset-0 z-10 rounded-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                />
                                 <div className="flex items-center gap-2">
                                   <span
                                     className="size-1.5 shrink-0 rounded-full bg-status-pending"
@@ -318,22 +326,6 @@ export function DispatcherOverview() {
                                   updatedAt={ticket.updated_at}
                                   now={now}
                                 />
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-8"
-                                  asChild
-                                >
-                                  <Link
-                                    to="/tickets/$ticketId"
-                                    params={{ ticketId: ticket.id }}
-                                    aria-label={`打开工单 ${ticket.title}`}
-                                  >
-                                    <ArrowRight className="size-4" />
-                                  </Link>
-                                </Button>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -506,16 +498,20 @@ function QueueWait({ updatedAt, now }: { updatedAt: string; now: Date }) {
   return (
     <div
       className={cn(
-        "text-xs",
+        "whitespace-normal text-xs",
         overdue ? "font-medium text-amber-800 dark:text-amber-200" : "",
       )}
       data-testid="queue-wait-time"
     >
-      <time dateTime={updatedAt}>{formatWaitDuration(updatedAt, now)}</time>
+      <time className="whitespace-nowrap" dateTime={updatedAt}>
+        {formatWaitDuration(updatedAt, now)}
+      </time>
       {overdue ? (
-        <span className="mt-0.5 block text-[11px]">已超过 24 小时</span>
+        <span className="mt-0.5 block whitespace-nowrap text-[11px]">
+          已超过 24 小时
+        </span>
       ) : null}
-      <span className="mt-0.5 block text-[11px] text-muted-foreground">
+      <span className="mt-0.5 block whitespace-nowrap text-[11px] text-muted-foreground">
         更新于 {formatDateTime(updatedAt)}
       </span>
     </div>

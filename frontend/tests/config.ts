@@ -17,3 +17,8 @@ function getEnvVar(name: string): string {
 
 export const firstSuperuser = getEnvVar("FIRST_SUPERUSER")
 export const firstSuperuserPassword = getEnvVar("FIRST_SUPERUSER_PASSWORD")
+export const backendBaseUrl =
+  process.env.E2E_BACKEND_URL ??
+  process.env.PLAYWRIGHT_BASE_URL ??
+  "http://localhost:8001"
+export const apiBaseUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/v1`

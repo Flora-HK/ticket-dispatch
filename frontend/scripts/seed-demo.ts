@@ -117,6 +117,7 @@ async function ensureUser(
     })
     knownUsers.push(user)
   } else {
+    const previousUserId = user.id
     user = await api<User>(adminToken, `/users/${user.id}`, {
       method: "PATCH",
       body: JSON.stringify({
@@ -127,22 +128,27 @@ async function ensureUser(
         expected_user_version: user.version,
       }),
     })
-    const index = knownUsers.findIndex((item) => item.id === user?.id)
+    const index = knownUsers.findIndex((item) => item.id === previousUserId)
     knownUsers[index] = user
   }
 
+  if (!user) {
+    throw new Error(`Unable to ensure demo user ${email}`)
+  }
+  const currentUser = user
   if (
-    user.roles.length !== roles.length ||
-    roles.some((role) => !user.roles.includes(role))
+    currentUser.roles.length !== roles.length ||
+    roles.some((role) => !currentUser.roles.includes(role))
   ) {
-    user = await api<User>(adminToken, `/users/${user.id}/roles`, {
+    const previousUserId = currentUser.id
+    user = await api<User>(adminToken, `/users/${currentUser.id}/roles`, {
       method: "PUT",
       body: JSON.stringify({
         roles,
-        expected_user_version: user.version,
+        expected_user_version: currentUser.version,
       }),
     })
-    const index = knownUsers.findIndex((item) => item.id === user?.id)
+    const index = knownUsers.findIndex((item) => item.id === previousUserId)
     knownUsers[index] = user
   }
   return user

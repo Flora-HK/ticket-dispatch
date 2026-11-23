@@ -1,8 +1,33 @@
 import { defineConfig, devices } from '@playwright/test';
-import 'dotenv/config'
 import path from "node:path"
+import dotenv from "dotenv"
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173'
+import {
+  expandEnvironmentValue,
+  toE2EDatabaseUrl,
+} from "./scripts/e2e-environment.ts"
+
+dotenv.config({ path: path.resolve(import.meta.dirname, "../.env") })
+
+const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL
+const backendURL = externalBaseURL ?? "http://localhost:8001"
+const baseURL = externalBaseURL ?? "http://localhost:5174"
+const e2eDatabaseUrl = externalBaseURL
+  ? undefined
+  : toE2EDatabaseUrl(
+      expandEnvironmentValue(
+        process.env.E2E_DATABASE_URL ??
+          process.env.DATABASE_URL ??
+          (() => {
+            throw new Error("DATABASE_URL is required to start the E2E backend")
+          })(),
+        process.env,
+      ),
+    )
+
+process.env.E2E_BACKEND_URL ??= backendURL
+process.env.VITE_API_URL ??= backendURL
+
 const backendPython = path.resolve(
   import.meta.dirname,
   "../.venv/Scripts/python.exe",
@@ -18,6 +43,7 @@ const backendPython = path.resolve(
  */
 export default defineConfig({
   testDir: './tests',
+  globalSetup: './tests/global-setup.ts',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -42,12 +68,33 @@ export default defineConfig({
     { name: 'setup', testMatch: /.*\.setup\.ts/ },
 
     {
-      name: 'chromium',
+      name: 'visual-chromium',
+      testMatch: /visual\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.auth/user.json',
       },
       dependencies: ['setup'],
+    },
+
+    {
+      name: 'visual-mobile-chromium',
+      testMatch: /visual\.spec\.ts/,
+      use: {
+        ...devices["Pixel 5"],
+        storageState: "playwright/.auth/user.json",
+      },
+      dependencies: ["setup"],
+    },
+
+    {
+      name: 'chromium',
+      testIgnore: /visual\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup', 'visual-chromium', 'visual-mobile-chromium'],
     },
 
     // {
@@ -71,11 +118,12 @@ export default defineConfig({
     /* Test against mobile viewports. */
     {
       name: "mobile-chromium",
+      testIgnore: /visual\.spec\.ts/,
       use: {
         ...devices["Pixel 5"],
         storageState: "playwright/.auth/user.json",
       },
-      dependencies: ["setup"],
+      dependencies: ["setup", "visual-chromium", "visual-mobile-chromium"],
     },
     // {
     //   name: 'Mobile Safari',
@@ -98,15 +146,24 @@ export default defineConfig({
     ? undefined
     : [
         {
-          command: `"${backendPython}" -m uvicorn app.main:app --host 127.0.0.1 --port 8000`,
+          command:
+            `"${backendPython}" scripts/e2e_prepare.py && ` +
+            `"${backendPython}" -m uvicorn app.main:app --host 127.0.0.1 --port 8001`,
           cwd: path.resolve(import.meta.dirname, "../backend"),
-          url: "http://localhost:8000/api/v1/health/live",
-          reuseExistingServer: !process.env.CI,
+          env: {
+            DATABASE_URL: e2eDatabaseUrl ?? "",
+            FRONTEND_HOST: baseURL,
+          },
+          url: "http://localhost:8001/api/v1/health/live",
+          reuseExistingServer: false,
         },
         {
-          command: 'bun run dev',
+          command: 'bunx vite --host 127.0.0.1 --port 5174',
+          env: {
+            VITE_API_URL: backendURL,
+          },
           url: baseURL,
-          reuseExistingServer: !process.env.CI,
+          reuseExistingServer: false,
         },
       ],
 });
