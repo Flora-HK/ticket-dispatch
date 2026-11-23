@@ -1,148 +1,124 @@
-# FastAPI Project - Frontend
+# Frontend · Dispatch Desk
 
-The frontend is built with [Vite](https://vitejs.dev/), [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [TanStack Query](https://tanstack.com/query), [TanStack Router](https://tanstack.com/router), [Tailwind CSS](https://tailwindcss.com/), and [shadcn/ui](https://ui.shadcn.com/).
+React 前端为 Submitter、Handler、Dispatcher 和 Admin 提供角色化工作区，主视角是 Dispatcher 的派发总览与派发工作台。
 
-## Requirements
+项目总览、完整启动流程和测试基线以 [根 README](../README.md) 为准；本文只说明前端结构、配置和浏览器测试。
 
-- [Bun](https://bun.sh/)
+## 技术结构
 
-## Quick Start
+- React 19 + TypeScript
+- Vite 8
+- TanStack Router：页面、URL 搜索参数与路由保护
+- TanStack Query：服务端状态、cursor 分页与失效刷新
+- Tailwind CSS 4 + Radix UI + shadcn 风格组件
+- `@hey-api/openapi-ts` 生成客户端
 
-From the project root, install the dependencies and start the frontend development server:
+| 路径                      | 职责                                |
+| ------------------------- | ----------------------------------- |
+| `src/routes/`             | 页面路由与应用壳                    |
+| `src/features/`           | 总览、派发、工单、通知和 Admin 页面 |
+| `src/client/`             | OpenAPI 自动生成的服务与类型        |
+| `src/components/`         | 通用 UI、应用壳、状态组件和工单组件 |
+| `src/hooks/`              | 认证、移动视口和共用逻辑            |
+| `tests/`                  | Playwright、axe 和截图捕获          |
+| `playwright/screenshots/` | 真实页面截图                        |
 
-```bash
+## 页面
+
+| 路径                  | 页面                                   |
+| --------------------- | -------------------------------------- |
+| `/login`              | OAuth2 password flow 登录              |
+| `/`                   | 角色化工作总览                         |
+| `/dispatch`           | Dispatcher / Admin 派发工作台          |
+| `/tickets`            | 工单列表、筛选与创建                   |
+| `/tickets/{ticketId}` | 工单详情、评论、时间线、派发历史和动作 |
+| `/notifications`      | 当前用户通知                           |
+| `/admin/users`        | Admin 用户与角色                       |
+| `/admin/teams`        | Admin Team 与成员                      |
+| `/admin/audit`        | Admin 只读审计                         |
+
+## 本地运行
+
+先按根 README 启动 PostgreSQL 和 FastAPI，并确认 `frontend/.env` 中的 `VITE_API_URL` 指向后端。
+
+```powershell
+Set-Location E:\Projects\ticket-dispatch
 bun install
+
+Set-Location .\frontend
 bun run dev
 ```
 
-Then open <http://localhost:5173/> in your browser.
+打开 <http://localhost:5173>。
 
-Run `uv run bash scripts/prestart.sh` and `uv run fastapi dev` from the `backend` directory, with PostgreSQL running in Docker Compose. See [../development.md](../development.md) for the complete setup.
+## 演示数据
 
-To serve the frontend with FastAPI, run `bun run build` from the `frontend` directory and open `http://localhost:8000`.
+后端启动后执行：
 
-Check `frontend/package.json` to see the other available commands.
-
-## Demo Workspace
-
-With the backend and PostgreSQL running, create the deterministic demo dataset:
-
-```bash
+```powershell
+Set-Location E:\Projects\ticket-dispatch\frontend
 bun run seed:demo
 ```
 
-The script is idempotent and uses the real API. It creates an operations team,
-three handlers, a no-candidate team, and tickets covering every workflow state.
+脚本通过真实 API 幂等创建 Team、多角色账号和覆盖主要状态的工单。Admin 使用根目录 `.env` 中的 `FIRST_SUPERUSER` 和 `FIRST_SUPERUSER_PASSWORD`；其他演示账号及本地凭据由脚本维护，README 不复制密码。
 
-Demo accounts:
+## API 客户端
 
-| Role | Account | Password |
-|---|---|---|
-| Dispatcher | `demo.dispatcher@example.com` | `Demo-dispatch-2026!` |
-| Handler | `demo.handler1@example.com` | `Demo-dispatch-2026!` |
-| Handler | `demo.handler2@example.com` | `Demo-dispatch-2026!` |
-| Handler | `demo.handler3@example.com` | `Demo-dispatch-2026!` |
-| Submitter | `demo.submitter@example.com` | `Demo-dispatch-2026!` |
+后端公开 API 固定为 36 个 OpenAPI operations。生成客户端位于 `src/client`，按 tag 生成 `UsersService`、`TicketsService`、`AssignmentsService` 等服务，不在前端手工维护后端 DTO。
 
-Admin login still uses `FIRST_SUPERUSER` and `FIRST_SUPERUSER_PASSWORD` from the
-root `.env`. These demo credentials are local-only and must not be reused in a
-deployment.
+配置位于 `openapi-ts.config.ts`。后端契约发生变化时，应先更新 OpenAPI 快照，再重新生成客户端，并提交相应类型与服务差异。
 
-## Removing the Frontend
+## 交互约束
 
-If you are developing an API-only app and want to remove the frontend, you can do it easily:
+- 工单动作以服务端 `allowed_actions` 为准，本地角色只控制导航和页面可见性。
+- 用户提交时创建新的 `Idempotency-Key`。
+- 收到 `409` 后刷新相关查询，不自动重放旧请求。
+- cursor 由服务端生成并保持不透明；筛选变化会清空旧 cursor。
+- `401` 清理 token 并返回登录；`403`、`404`、`409`、`422` 和 5xx 使用对应状态组件。
 
-- Remove the `./frontend` directory.
+## 设计系统
 
-- In the `backend/app/main.py` file, remove the `app.frontend()` call.
+Signal Desk · Signal Ledger 设计系统使用语义颜色、4px 间距网格、低阴影和等宽数字：
 
-- In the `backend/Dockerfile` file, remove the frontend build stage and the `COPY --from=frontend-build` instruction.
+- 蓝色表示主操作和当前选择；
+- 黄色表示等待；
+- 红色表示错误或冲突；
+- 绿色只表示完成确认；
+- 状态同时使用文字和颜色表达。
 
-- In the `compose.override.yml` file, remove the `playwright` service.
+页面支持浅色、深色和跟随系统。桌面使用折叠侧栏和高密度数据布局；移动端使用抽屉导航、卡片式信息行和行内主从布局。派发页在桌面为三轨／1024px 双栏，移动端为队列、详情、派发三段流程。
 
-- In the `.github/workflows/deploy.yml` file, remove the **Set up Bun**, **Install frontend dependencies**, and **Build frontend** steps.
+筛选页使用工具条、条件标签和渐进展开的高级筛选；表格只在自身容器内滚动。错误反馈区分 409 冲突、422 字段错误与其他可重试错误，冲突会保留输入并展示刷新前后版本差异。
 
-- In the `.fastapicloudignore` file, remove the `!backend/app/frontend/` entry.
+可访问性实现包括可见标签、图标按钮可读名称、Radix UI 焦点管理、与最终结构一致的 loading skeleton，以及错误和异步区域的语义化提示。axe 自动化扫描覆盖 7 个主要页面的桌面与移动视口。
 
-Done, you now have an API-only app. 🤓
+## 测试
 
-## Generate Client
+单元测试：
 
-### Automatically
-
-- From the project root, run the script:
-
-```bash
-bash ./scripts/generate-client.sh
+```powershell
+Set-Location E:\Projects\ticket-dispatch\frontend
+bun run test:unit
 ```
 
-- Commit the changes.
+构建检查：
 
-### Manually
-
-- Make sure the backend is running.
-
-- Download the OpenAPI JSON file from `http://localhost:8000/api/v1/openapi.json` and copy it to a new file `openapi.json` at the root of the `frontend` directory.
-
-- To generate the frontend client, run:
-
-```bash
-bun run generate-client
+```powershell
+bun run build
 ```
 
-- Commit the changes.
+行为 E2E：
 
-Regenerate the client whenever backend changes affect the OpenAPI schema.
-
-## Using a Remote API
-
-By default, the built frontend uses the same origin as the FastAPI app. If you want to use a remote API while running the Vite development server, you can set the environment variable `VITE_API_URL` to the URL of the remote API. For example, you can set it in the `frontend/.env` file:
-
-```env
-VITE_API_URL=https://my-domain.example.com
+```powershell
+bunx playwright test --grep-invert "capture"
 ```
 
-Then, when you run the frontend, it will use that URL as the base URL for the API.
+完整 E2E 与截图捕获：
 
-## Code Structure
-
-The frontend code is structured as follows:
-
-- `frontend/src` - The main frontend code.
-- `frontend/public` - Static assets.
-- `frontend/src/client` - The generated OpenAPI client.
-- `frontend/src/components` - The components of the frontend, including the shadcn/ui components in `frontend/src/components/ui`.
-- `frontend/src/hooks` - Custom hooks.
-- `frontend/src/lib` - Shared frontend utilities.
-- `frontend/src/routes` - The frontend routes and pages.
-
-## End-to-End Testing with Playwright
-
-The frontend includes initial end-to-end tests using Playwright. To run the tests, you need to have the Docker Compose stack running. Start the stack with the following command:
-
-```bash
-docker compose run --rm backend bash scripts/prestart.sh
-docker compose up -d --wait backend
-```
-
-Then, you can run the tests with the following command:
-
-```bash
+```powershell
 bunx playwright test
 ```
 
-You can also run your tests in UI mode to see the browser and interact with it running:
+`tests/visual.spec.ts` 会覆盖 `playwright/screenshots/` 中受 Git 跟踪的图片。只做行为回归时使用 `--grep-invert "capture"`；确需更新作品集截图时再单独运行截图用例。
 
-```bash
-bunx playwright test --ui
-```
-
-To stop and remove the Docker Compose stack and clean the data created in tests, use the following command:
-
-```bash
-docker compose down -v
-```
-
-To update the tests, navigate to the tests directory and modify the existing test files or add new ones as needed.
-
-For more information on writing and running Playwright tests, refer to the official [Playwright documentation](https://playwright.dev/docs/intro).
+Playwright 需要可用的 PostgreSQL、FastAPI、演示数据和正确的前端配置。当前测试配置使用浏览器登录态文件，应在受控本地环境中运行。
