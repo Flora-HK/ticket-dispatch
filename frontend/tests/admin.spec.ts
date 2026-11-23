@@ -48,7 +48,7 @@ test("admin creates a user through the governance form", async ({
       response.url().endsWith("/api/v1/users") &&
       response.request().method() === "POST",
   )
-  await page.getByRole("button", { name: "保存", exact: true }).click()
+  await page.getByRole("button", { name: "创建账号" }).click()
   const response = await responsePromise
   expect(response.status()).toBe(201)
   await expect(page.getByRole("dialog")).toHaveCount(0)
@@ -68,10 +68,33 @@ test("admin creates a team through the governance form", async ({
       response.url().endsWith("/api/v1/teams") &&
       response.request().method() === "POST",
   )
-  await page.getByRole("button", { name: "保存", exact: true }).click()
+  await page.getByRole("button", { name: "创建 Team" }).click()
   const response = await responsePromise
   expect(response.status()).toBe(201)
-  await expect(
-    page.getByRole("button", { name: new RegExp(name) }),
-  ).toBeVisible()
+  await expect(page.getByText("Team 已创建")).toBeVisible()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+})
+
+test("admin validation errors focus the field summary", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "covered on desktop")
+  await page.goto("/admin/users")
+  await page.getByRole("button", { name: "新建账号" }).click()
+  await page.getByLabel("邮箱").fill("not-an-email")
+  await page.getByLabel("初始密码").fill("Strong-demo-pass-2026")
+
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/users") &&
+      response.request().method() === "POST",
+  )
+  await page.getByRole("button", { name: "创建账号" }).click()
+  expect((await responsePromise).status()).toBe(422)
+
+  const summary = page.getByRole("alert").filter({
+    hasText: "请检查以下字段",
+  })
+  await expect(summary).toBeFocused()
+  await expect(summary.getByRole("link")).toHaveAttribute("href", "#user-email")
 })

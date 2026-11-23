@@ -5,6 +5,13 @@ interface ApiErrorBody {
     code?: string
     message?: string
     request_id?: string
+    details?: {
+      fields?: Array<{
+        loc?: unknown[]
+        message?: string
+        msg?: string
+      }>
+    }
   }
 }
 
@@ -48,6 +55,21 @@ export function getApiErrorMeta(err: Error): {
     code: detail?.code,
     requestId: detail?.request_id,
   }
+}
+
+export function getApiErrorFields(err: Error): Record<string, string> {
+  if (!(err instanceof AxiosError)) return {}
+  const fields = apiErrorBody(err)?.error?.details?.fields
+  if (!Array.isArray(fields)) return {}
+
+  return fields.reduce<Record<string, string>>((result, field) => {
+    const key = [...(field.loc ?? [])]
+      .reverse()
+      .find((segment): segment is string => typeof segment === "string")
+    const message = field.message ?? field.msg
+    if (key && message) result[key] = message
+    return result
+  }, {})
 }
 
 export function isConflictError(err: Error): boolean {

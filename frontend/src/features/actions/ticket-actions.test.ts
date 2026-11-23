@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { getTicketActionLabel, hasTicketAction } from "./ticket-actions"
+import {
+  getPrimaryTicketAction,
+  getTicketActionLabel,
+  hasTicketAction,
+} from "./ticket-actions"
 
 describe("ticket actions", () => {
   it("uses only the server action list for ticket capabilities", () => {
@@ -13,5 +17,15 @@ describe("ticket actions", () => {
   it("provides concise Chinese labels for action controls", () => {
     expect(getTicketActionLabel("DISPATCH")).toBe("进入派发")
     expect(getTicketActionLabel("ACCEPT")).toBe("接受工单")
+  })
+
+  it("selects one workflow action as the visible next step", () => {
+    expect(getPrimaryTicketAction(["COMMENT", "DISPATCH", "CLOSE"])).toBe(
+      "DISPATCH",
+    )
+    expect(getPrimaryTicketAction(["COMMENT", "COMPLETE", "REJECT"])).toBe(
+      "COMPLETE",
+    )
+    expect(getPrimaryTicketAction(["COMMENT"])).toBeUndefined()
   })
 })

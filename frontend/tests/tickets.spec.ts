@@ -96,6 +96,10 @@ test("409 conflict refreshes the ticket before retrying a comment", async ({
   await page.getByLabel("新评论").fill("第一次使用旧版本提交")
   await page.getByRole("button", { name: "发布评论" }).click()
   await expect(page.getByText("v2", { exact: true })).toBeVisible()
+  const conflictBanner = page.getByTestId("conflict-banner")
+  await expect(conflictBanner).toContainText("资源已发生变化")
+  await expect(conflictBanner).toContainText("v1 → v2")
+  await expect(page.getByLabel("新评论")).toHaveValue("第一次使用旧版本提交")
 
   await page.getByLabel("新评论").fill("刷新版本后成功提交")
   await page.getByRole("button", { name: "发布评论" }).click()
@@ -245,13 +249,13 @@ test("Admin and handler complete the end-to-end ticket flow", async ({
 
   await handlerPage.getByRole("button", { name: "完成处理" }).click()
   await handlerPage.getByLabel("操作说明").fill("E2E 处理已完成")
-  await handlerPage.getByRole("button", { name: "确认" }).click()
+  await handlerPage.getByRole("button", { name: "提交完成结果" }).click()
   await expect(handlerPage.getByText("待确认")).toBeVisible()
 
   await page.reload()
   await page.getByRole("button", { name: "关闭工单" }).click()
   await page.getByLabel("操作说明").fill("E2E 验收通过")
-  await page.getByRole("button", { name: "确认" }).click()
+  await page.getByRole("button", { name: "确认关闭" }).click()
   await expect(page.locator('[data-status="CLOSED"]').first()).toBeVisible()
   await expect(
     page.getByTestId("ticket-timeline").getByText("工单已关闭"),

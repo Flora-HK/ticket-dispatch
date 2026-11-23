@@ -15,11 +15,19 @@ import { useState } from "react"
 
 import { type RoleCode, type UserPublic, UsersService } from "@/client"
 import {
+  ActionError,
+  FieldError,
+  FormErrorSummary,
+} from "@/components/shared/ActionError"
+import {
   EmptyState,
   ErrorState,
   LoadingRows,
 } from "@/components/shared/AsyncState"
-import { ConflictBanner } from "@/components/shared/ConflictBanner"
+import {
+  ConflictBanner,
+  type ConflictSnapshot,
+} from "@/components/shared/ConflictBanner"
 import { DataPager } from "@/components/shared/DataPager"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -57,11 +65,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { extractErrorMessage, getApiErrorMeta, isConflictError } from "@/utils"
+import {
+  extractErrorMessage,
+  getApiErrorFields,
+  getApiErrorMeta,
+  isConflictError,
+} from "@/utils"
 
 const roleOptions: RoleCode[] = ["SUBMITTER", "DISPATCHER", "HANDLER", "ADMIN"]
 
 type UserDialogMode = "CREATE" | "EDIT" | "ROLES"
+type ConflictState = {
+  message: string
+  code?: string
+  requestId?: string
+  refreshed: boolean
+  before?: ConflictSnapshot
+  after?: ConflictSnapshot
+}
+type ActionErrorState = {
+  message: string
+  requestId?: string
+  fields: Record<string, string>
+}
 
 type FormState = {
   email: string
@@ -86,10 +112,9 @@ export function UsersPage() {
   const [mode, setMode] = useState<UserDialogMode | null>(null)
   const [selectedUser, setSelectedUser] = useState<UserPublic | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
-  const [conflict, setConflict] = useState<{
-    message: string
-    refreshed: boolean
-  } | null>(null)
+  const [conflict, setConflict] = useState<ConflictState | null>(null)
+  const [actionError, setActionError] = useState<ActionErrorState | null>(null)
+  const [actionNotice, setActionNotice] = useState<string | null>(null)
 
   const users = useInfiniteQuery({
     queryKey: ["admin-users", { role, active }],
@@ -116,12 +141,48 @@ export function UsersPage() {
     ])
   }
 
-  const mutationError = async (error: Error) => {
-    setConflict({ message: extractErrorMessage(error), refreshed: false })
+  const userSnapshot = (user: UserPublic): ConflictSnapshot => ({
+    version: user.version,
+    statusLabel: user.is_active ? "启用" : "停用",
+  })
+
+  const mutationError = async (error: Error, beforeUser?: UserPublic) => {
+    setActionNotice(null)
+    const meta = getApiErrorMeta(error)
     if (isConflictError(error)) {
+      setActionError(null)
+      setConflict({
+        message: extractErrorMessage(error),
+        code: meta.code,
+        requestId: meta.requestId,
+        refreshed: false,
+        before: beforeUser ? userSnapshot(beforeUser) : undefined,
+      })
       await refresh()
+      const latest = beforeUser
+        ? (
+            await UsersService.readUserById({
+              path: { user_id: beforeUser.id },
+            })
+          ).data
+        : undefined
+      setConflict((current) =>
+        current
+          ? {
+              ...current,
+              refreshed: true,
+              after: latest ? userSnapshot(latest) : undefined,
+            }
+          : null,
+      )
+      return
     }
-    setConflict((current) => (current ? { ...current, refreshed: true } : null))
+    setConflict(null)
+    setActionError({
+      message: extractErrorMessage(error),
+      requestId: meta.requestId,
+      fields: getApiErrorFields(error),
+    })
   }
 
   const createUser = useMutation({
@@ -140,9 +201,11 @@ export function UsersPage() {
     onSuccess: async () => {
       setMode(null)
       setForm(emptyForm)
+      setActionError(null)
+      setActionNotice("账号已创建")
       await refresh()
     },
-    onError: mutationError,
+    onError: (error) => mutationError(error),
   })
 
   const updateUser = useMutation({
@@ -162,9 +225,11 @@ export function UsersPage() {
       ).data,
     onSuccess: async () => {
       setMode(null)
+      setActionError(null)
+      setActionNotice("账号资料已保存")
       await refresh()
     },
-    onError: mutationError,
+    onError: (error, user) => mutationError(error, user),
   })
 
   const replaceRoles = useMutation({
@@ -181,14 +246,17 @@ export function UsersPage() {
       ).data,
     onSuccess: async () => {
       setMode(null)
+      setActionError(null)
+      setActionNotice("角色已更新")
       await refresh()
     },
-    onError: mutationError,
+    onError: (error, user) => mutationError(error, user),
   })
 
   const openCreate = () => {
     setForm(emptyForm)
     setSelectedUser(null)
+    setActionError(null)
     setMode("CREATE")
   }
 
@@ -201,6 +269,7 @@ export function UsersPage() {
       isActive: user.is_active,
       roles: [...user.roles],
     })
+    setActionError(null)
     setMode("EDIT")
   }
 
@@ -213,6 +282,7 @@ export function UsersPage() {
       isActive: user.is_active,
       roles: [...user.roles],
     })
+    setActionError(null)
     setMode("ROLES")
   }
 
@@ -245,12 +315,30 @@ export function UsersPage() {
         }
       />
 
-      {conflict ? (
+      {conflict && mode === null ? (
         <ConflictBanner
           message={conflict.message}
+          code={conflict.code}
           refreshed={conflict.refreshed}
+          before={conflict.before}
+          after={conflict.after}
           onDismiss={() => setConflict(null)}
         />
+      ) : null}
+      {actionError && mode === null ? (
+        <ActionError
+          message={actionError.message}
+          requestId={actionError.requestId}
+          onDismiss={() => setActionError(null)}
+        />
+      ) : null}
+      {actionNotice ? (
+        <p
+          className="rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-4 py-2.5 text-sm"
+          role="status"
+        >
+          {actionNotice}
+        </p>
       ) : null}
 
       <Card>
@@ -430,7 +518,11 @@ export function UsersPage() {
       <Dialog
         open={mode !== null}
         onOpenChange={(open) => {
-          if (!open) setMode(null)
+          if (!open) {
+            setMode(null)
+            setActionError(null)
+            setActionNotice(null)
+          }
         }}
       >
         <DialogContent className="sm:max-w-lg">
@@ -451,8 +543,36 @@ export function UsersPage() {
             </DialogDescription>
           </DialogHeader>
 
+          {conflict ? (
+            <ConflictBanner
+              message={conflict.message}
+              code={conflict.code}
+              refreshed={conflict.refreshed}
+              before={conflict.before}
+              after={conflict.after}
+              onDismiss={() => setConflict(null)}
+            />
+          ) : null}
+          {actionError ? (
+            <>
+              <FormErrorSummary
+                errors={actionError.fields}
+                fieldIdPrefix="user"
+                fieldIds={{ roles: "user-roles" }}
+              />
+              {Object.keys(actionError.fields).length === 0 ? (
+                <ActionError
+                  message={actionError.message}
+                  requestId={actionError.requestId}
+                  onDismiss={() => setActionError(null)}
+                />
+              ) : null}
+            </>
+          ) : null}
+
           {mode === "ROLES" ? (
             <RoleChecklist
+              id="user-roles"
               selected={form.roles}
               onChange={(roles) =>
                 setForm((current) => ({ ...current, roles }))
@@ -463,7 +583,12 @@ export function UsersPage() {
               <div className="grid gap-2 text-sm font-medium">
                 <span>邮箱</span>
                 <Input
+                  id="user-email"
                   aria-label="邮箱"
+                  aria-invalid={Boolean(actionError?.fields.email)}
+                  aria-describedby={
+                    actionError?.fields.email ? "user-email-error" : undefined
+                  }
                   type="email"
                   value={form.email}
                   onChange={(event) =>
@@ -473,10 +598,15 @@ export function UsersPage() {
                     }))
                   }
                 />
+                <FieldError
+                  id="user-email-error"
+                  message={actionError?.fields.email}
+                />
               </div>
               <div className="grid gap-2 text-sm font-medium">
                 <span>姓名</span>
                 <Input
+                  id="user-full-name"
                   aria-label="姓名"
                   value={form.fullName}
                   onChange={(event) =>
@@ -486,14 +616,25 @@ export function UsersPage() {
                     }))
                   }
                 />
+                <FieldError
+                  id="user-full-name-error"
+                  message={actionError?.fields.full_name}
+                />
               </div>
               <div className="grid gap-2 text-sm font-medium">
                 <span>
                   {mode === "CREATE" ? "初始密码" : "重置密码（可选）"}
                 </span>
                 <Input
+                  id="user-password"
                   aria-label={
                     mode === "CREATE" ? "初始密码" : "重置密码（可选）"
+                  }
+                  aria-invalid={Boolean(actionError?.fields.password)}
+                  aria-describedby={
+                    actionError?.fields.password
+                      ? "user-password-error"
+                      : undefined
                   }
                   type="password"
                   value={form.password}
@@ -504,9 +645,14 @@ export function UsersPage() {
                     }))
                   }
                 />
+                <FieldError
+                  id="user-password-error"
+                  message={actionError?.fields.password}
+                />
               </div>
               {mode === "CREATE" ? (
                 <RoleChecklist
+                  id="user-roles"
                   selected={form.roles}
                   onChange={(roles) =>
                     setForm((current) => ({ ...current, roles }))
@@ -531,7 +677,14 @@ export function UsersPage() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMode(null)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setMode(null)
+                setActionError(null)
+                setActionNotice(null)
+              }}
+            >
               取消
             </Button>
             <Button
@@ -556,7 +709,9 @@ export function UsersPage() {
                 ? "正在提交…"
                 : mode === "ROLES"
                   ? "保存角色"
-                  : "保存"}
+                  : mode === "CREATE"
+                    ? "创建账号"
+                    : "保存资料"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -566,14 +721,16 @@ export function UsersPage() {
 }
 
 function RoleChecklist({
+  id,
   selected,
   onChange,
 }: {
+  id?: string
   selected: RoleCode[]
   onChange: (roles: RoleCode[]) => void
 }) {
   return (
-    <fieldset className="grid gap-2">
+    <fieldset id={id} className="grid gap-2">
       <legend className="mb-2 flex items-center gap-2 text-sm font-medium">
         <KeyRound className="size-4 text-primary" />
         角色

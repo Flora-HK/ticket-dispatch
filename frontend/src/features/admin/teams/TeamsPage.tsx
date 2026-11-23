@@ -14,12 +14,20 @@ import {
   UsersService,
 } from "@/client"
 import {
+  ActionError,
+  FieldError,
+  FormErrorSummary,
+} from "@/components/shared/ActionError"
+import {
   EmptyState,
   ErrorState,
   InlineLoading,
   LoadingRows,
 } from "@/components/shared/AsyncState"
-import { ConflictBanner } from "@/components/shared/ConflictBanner"
+import {
+  ConflictBanner,
+  type ConflictSnapshot,
+} from "@/components/shared/ConflictBanner"
 import { DataPager } from "@/components/shared/DataPager"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { formatDateTime } from "@/components/Tickets/ticket-ui"
@@ -49,9 +57,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { extractErrorMessage, getApiErrorMeta, isConflictError } from "@/utils"
+import {
+  extractErrorMessage,
+  getApiErrorFields,
+  getApiErrorMeta,
+  isConflictError,
+} from "@/utils"
 
 type TeamDialogMode = "CREATE" | "EDIT" | null
+type ConflictState = {
+  message: string
+  code?: string
+  requestId?: string
+  refreshed: boolean
+  before?: ConflictSnapshot
+  after?: ConflictSnapshot
+}
+type ActionErrorState = {
+  message: string
+  requestId?: string
+  fields: Record<string, string>
+}
 
 export function TeamsPage() {
   const queryClient = useQueryClient()
@@ -61,10 +87,9 @@ export function TeamsPage() {
   const [teamActive, setTeamActive] = useState(true)
   const [editingTeam, setEditingTeam] = useState<TeamPublic | null>(null)
   const [newMemberId, setNewMemberId] = useState("")
-  const [conflict, setConflict] = useState<{
-    message: string
-    refreshed: boolean
-  } | null>(null)
+  const [conflict, setConflict] = useState<ConflictState | null>(null)
+  const [actionError, setActionError] = useState<ActionErrorState | null>(null)
+  const [actionNotice, setActionNotice] = useState<string | null>(null)
 
   const teams = useInfiniteQuery({
     queryKey: ["admin-teams"],
@@ -125,10 +150,45 @@ export function TeamsPage() {
     selectedTeam?.version ??
     0
 
-  const mutationError = async (error: Error) => {
-    setConflict({ message: extractErrorMessage(error), refreshed: false })
-    if (isConflictError(error)) await refreshTeams()
-    setConflict((current) => (current ? { ...current, refreshed: true } : null))
+  const teamSnapshot = (team: TeamPublic): ConflictSnapshot => ({
+    version: team.version,
+    statusLabel: team.is_active ? "启用" : "停用",
+  })
+
+  const mutationError = async (error: Error, beforeTeam?: TeamPublic) => {
+    setActionNotice(null)
+    const meta = getApiErrorMeta(error)
+    if (isConflictError(error)) {
+      setActionError(null)
+      setConflict({
+        message: extractErrorMessage(error),
+        code: meta.code,
+        requestId: meta.requestId,
+        refreshed: false,
+        before: beforeTeam ? teamSnapshot(beforeTeam) : undefined,
+      })
+      await refreshTeams()
+      const latest = beforeTeam
+        ? (await TeamsService.readTeam({ path: { team_id: beforeTeam.id } }))
+            .data
+        : undefined
+      setConflict((current) =>
+        current
+          ? {
+              ...current,
+              refreshed: true,
+              after: latest ? teamSnapshot(latest) : undefined,
+            }
+          : null,
+      )
+      return
+    }
+    setConflict(null)
+    setActionError({
+      message: extractErrorMessage(error),
+      requestId: meta.requestId,
+      fields: getApiErrorFields(error),
+    })
   }
 
   const createTeam = useMutation({
@@ -143,9 +203,11 @@ export function TeamsPage() {
       setSelectedId(team.id)
       setDialogMode(null)
       setTeamName("")
+      setActionError(null)
+      setActionNotice("Team 已创建")
       await refreshTeams()
     },
-    onError: mutationError,
+    onError: (error) => mutationError(error),
   })
 
   const updateTeam = useMutation({
@@ -164,9 +226,11 @@ export function TeamsPage() {
     onSuccess: async () => {
       setDialogMode(null)
       setEditingTeam(null)
+      setActionError(null)
+      setActionNotice("Team 已更新")
       await refreshTeams()
     },
-    onError: mutationError,
+    onError: (error, team) => mutationError(error, team),
   })
 
   const upsertMember = useMutation({
@@ -192,9 +256,11 @@ export function TeamsPage() {
       ).data,
     onSuccess: async () => {
       setNewMemberId("")
+      setActionError(null)
+      setActionNotice("成员状态已更新")
       await refreshTeams()
     },
-    onError: mutationError,
+    onError: (error) => mutationError(error, selectedTeam ?? undefined),
   })
 
   const removeMember = useMutation({
@@ -209,14 +275,20 @@ export function TeamsPage() {
           headers: { "Idempotency-Key": crypto.randomUUID() },
         })
       ).data,
-    onSuccess: () => refreshTeams(),
-    onError: mutationError,
+    onSuccess: async () => {
+      setActionError(null)
+      setActionNotice("成员已移除")
+      await refreshTeams()
+    },
+    onError: (error) => mutationError(error, selectedTeam ?? undefined),
   })
 
   const openCreate = () => {
     setEditingTeam(null)
     setTeamName("")
     setTeamActive(true)
+    setActionError(null)
+    setActionNotice(null)
     setDialogMode("CREATE")
   }
 
@@ -224,6 +296,8 @@ export function TeamsPage() {
     setEditingTeam(team)
     setTeamName(team.name)
     setTeamActive(team.is_active)
+    setActionError(null)
+    setActionNotice(null)
     setDialogMode("EDIT")
   }
 
@@ -259,12 +333,30 @@ export function TeamsPage() {
         }
       />
 
-      {conflict ? (
+      {conflict && dialogMode === null ? (
         <ConflictBanner
           message={conflict.message}
+          code={conflict.code}
           refreshed={conflict.refreshed}
+          before={conflict.before}
+          after={conflict.after}
           onDismiss={() => setConflict(null)}
         />
+      ) : null}
+      {actionError && dialogMode === null ? (
+        <ActionError
+          message={actionError.message}
+          requestId={actionError.requestId}
+          onDismiss={() => setActionError(null)}
+        />
+      ) : null}
+      {actionNotice ? (
+        <p
+          className="rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-4 py-2.5 text-sm"
+          role="status"
+        >
+          {actionNotice}
+        </p>
       ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -465,7 +557,11 @@ export function TeamsPage() {
       <Dialog
         open={dialogMode !== null}
         onOpenChange={(open) => {
-          if (!open) setDialogMode(null)
+          if (!open) {
+            setDialogMode(null)
+            setActionError(null)
+            setActionNotice(null)
+          }
         }}
       >
         <DialogContent>
@@ -477,14 +573,49 @@ export function TeamsPage() {
               Team 是派发队列；停用后不会再成为新派发目标。
             </DialogDescription>
           </DialogHeader>
+          {conflict ? (
+            <ConflictBanner
+              message={conflict.message}
+              code={conflict.code}
+              refreshed={conflict.refreshed}
+              before={conflict.before}
+              after={conflict.after}
+              onDismiss={() => setConflict(null)}
+            />
+          ) : null}
+          {actionError ? (
+            <>
+              <FormErrorSummary
+                errors={actionError.fields}
+                fieldIdPrefix="team"
+                fieldIds={{ name: "team-name", is_active: "team-active" }}
+              />
+              {Object.keys(actionError.fields).length === 0 ? (
+                <ActionError
+                  message={actionError.message}
+                  requestId={actionError.requestId}
+                  onDismiss={() => setActionError(null)}
+                />
+              ) : null}
+            </>
+          ) : null}
           <div className="grid gap-4">
             <div className="grid gap-2 text-sm font-medium">
               <span>Team 名称</span>
               <Input
+                id="team-name"
                 aria-label="Team 名称"
+                aria-invalid={Boolean(actionError?.fields.name)}
+                aria-describedby={
+                  actionError?.fields.name ? "team-name-error" : undefined
+                }
                 value={teamName}
                 maxLength={100}
                 onChange={(event) => setTeamName(event.target.value)}
+              />
+              <FieldError
+                id="team-name-error"
+                message={actionError?.fields.name}
               />
             </div>
             {dialogMode === "EDIT" ? (
@@ -499,7 +630,14 @@ export function TeamsPage() {
             ) : null}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogMode(null)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDialogMode(null)
+                setActionError(null)
+                setActionNotice(null)
+              }}
+            >
               取消
             </Button>
             <Button
@@ -513,7 +651,9 @@ export function TeamsPage() {
             >
               {createTeam.isPending || updateTeam.isPending
                 ? "正在提交…"
-                : "保存"}
+                : dialogMode === "CREATE"
+                  ? "创建 Team"
+                  : "保存 Team"}
             </Button>
           </DialogFooter>
         </DialogContent>

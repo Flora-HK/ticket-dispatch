@@ -25,15 +25,26 @@ import {
   TicketsService,
 } from "@/client"
 import {
+  ActionError,
+  FieldError,
+  FormErrorSummary,
+} from "@/components/shared/ActionError"
+import {
   EmptyState,
   ErrorState,
   LoadingRows,
 } from "@/components/shared/AsyncState"
-import { ConflictBanner } from "@/components/shared/ConflictBanner"
+import {
+  ConflictBanner,
+  type ConflictSnapshot,
+} from "@/components/shared/ConflictBanner"
 import { DataPager } from "@/components/shared/DataPager"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
-import { formatDateTime } from "@/components/Tickets/ticket-ui"
+import {
+  formatDateTime,
+  ticketStatusLabels,
+} from "@/components/Tickets/ticket-ui"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -51,43 +62,70 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { hasTicketAction } from "@/features/actions/ticket-actions"
+import {
+  getPrimaryTicketAction,
+  hasTicketAction,
+} from "@/features/actions/ticket-actions"
 import {
   extractErrorMessage,
   getApiErrorCode,
+  getApiErrorFields,
   getApiErrorMeta,
   isConflictError,
 } from "@/utils"
 
 type DialogAction = "REJECT" | "COMPLETE" | "CLOSE" | "REOPEN" | "EDIT"
+type ConflictState = {
+  message: string
+  code?: string
+  requestId?: string
+  refreshed: boolean
+  before?: ConflictSnapshot
+  after?: ConflictSnapshot
+}
+type ActionErrorState = {
+  message: string
+  requestId?: string
+  fields: Record<string, string>
+}
 
 const actionCopy: Record<
   Exclude<DialogAction, "EDIT">,
-  { title: string; description: string; placeholder: string; success: string }
+  {
+    title: string
+    description: string
+    placeholder: string
+    success: string
+    submit: string
+  }
 > = {
   REJECT: {
     title: "拒绝派发",
     description: "说明无法处理的原因。提交后工单会回到待派发。",
     placeholder: "例如：当前处理人缺少所需权限",
     success: "已拒绝派发",
+    submit: "确认拒绝",
   },
   COMPLETE: {
     title: "完成处理",
     description: "请说明处理结果，提交后等待工单提交人确认。",
     placeholder: "填写处理过程与结果",
     success: "处理已完成",
+    submit: "提交完成结果",
   },
   CLOSE: {
     title: "关闭工单",
     description: "确认问题已经解决。解决说明可选填。",
     placeholder: "可选：填写确认或解决说明",
     success: "工单已关闭",
+    submit: "确认关闭",
   },
   REOPEN: {
     title: "重新打开工单",
     description: "说明问题为何仍需继续处理。",
     placeholder: "填写重新打开的原因",
     success: "工单已重新打开",
+    submit: "确认重新打开",
   },
 }
 
@@ -98,10 +136,9 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
   const [editTitle, setEditTitle] = useState("")
   const [editDescription, setEditDescription] = useState("")
   const [commentBody, setCommentBody] = useState("")
-  const [conflict, setConflict] = useState<{
-    message: string
-    refreshed: boolean
-  } | null>(null)
+  const [conflict, setConflict] = useState<ConflictState | null>(null)
+  const [actionError, setActionError] = useState<ActionErrorState | null>(null)
+  const [actionNotice, setActionNotice] = useState<string | null>(null)
 
   const ticket = useQuery({
     queryKey: ["ticket", ticketId],
@@ -146,7 +183,7 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
     enabled: Boolean(ticket.data),
   })
 
-  const refreshTicket = async () => {
+  const refreshTicket = async (): Promise<TicketDetailPublic> => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["ticket", ticketId] }),
       queryClient.invalidateQueries({ queryKey: ["tickets"] }),
@@ -161,19 +198,52 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
       queryClient.invalidateQueries({ queryKey: ["notifications"] }),
       queryClient.invalidateQueries({ queryKey: ["overview"] }),
     ])
+    return (await TicketsService.readTicket({ path: { ticket_id: ticketId } }))
+      .data
   }
 
-  const handleMutationError = async (error: Error) => {
+  const handleMutationError = async (
+    error: Error,
+    before?: ConflictSnapshot,
+  ) => {
+    setActionNotice(null)
+    const meta = getApiErrorMeta(error)
     if (isConflictError(error)) {
-      setConflict({ message: extractErrorMessage(error), refreshed: false })
-      await refreshTicket()
+      setActionError(null)
+      setConflict({
+        message: extractErrorMessage(error),
+        code: meta.code,
+        requestId: meta.requestId,
+        refreshed: false,
+        before,
+      })
+      const latest = await refreshTicket()
       setConflict((current) =>
-        current ? { ...current, refreshed: true } : null,
+        current
+          ? {
+              ...current,
+              refreshed: true,
+              after: {
+                version: latest.version,
+                statusLabel: ticketStatusLabels[latest.status],
+              },
+            }
+          : null,
       )
       return
     }
-    setConflict({ message: extractErrorMessage(error), refreshed: true })
+    setConflict(null)
+    setActionError({
+      message: extractErrorMessage(error),
+      requestId: meta.requestId,
+      fields: getApiErrorFields(error),
+    })
   }
+
+  const ticketSnapshot = (detail: TicketDetailPublic): ConflictSnapshot => ({
+    version: detail.version,
+    statusLabel: ticketStatusLabels[detail.status],
+  })
 
   const accept = useMutation({
     mutationFn: async (detail: TicketDetailPublic) => {
@@ -189,8 +259,13 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
         })
       ).data
     },
-    onSuccess: async () => refreshTicket(),
-    onError: handleMutationError,
+    onSuccess: async () => {
+      setActionError(null)
+      setActionNotice("工单已接受")
+      await refreshTicket()
+    },
+    onError: (error, detail) =>
+      handleMutationError(error, ticketSnapshot(detail)),
   })
 
   const actionMutation = useMutation({
@@ -272,12 +347,19 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
         })
       ).data
     },
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
       setDialogAction(null)
       setDialogNote("")
+      setActionError(null)
+      setActionNotice(
+        variables.action === "EDIT"
+          ? "工单修改已保存"
+          : actionCopy[variables.action].success,
+      )
       await refreshTicket()
     },
-    onError: handleMutationError,
+    onError: (error, variables) =>
+      handleMutationError(error, ticketSnapshot(variables.detail)),
   })
 
   const commentMutation = useMutation({
@@ -294,9 +376,12 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
       ).data,
     onSuccess: async () => {
       setCommentBody("")
+      setActionError(null)
+      setActionNotice("评论已发布")
       await refreshTicket()
     },
-    onError: handleMutationError,
+    onError: (error, detail) =>
+      handleMutationError(error, ticketSnapshot(detail)),
   })
 
   if (ticket.isLoading) {
@@ -335,6 +420,7 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
   const timelineItems = timeline.data?.pages.flatMap((page) => page.items) ?? []
   const historyItems = history.data?.pages.flatMap((page) => page.items) ?? []
   const action = (name: TicketAction) => hasTicketAction(detail, name)
+  const primaryAction = getPrimaryTicketAction(detail.allowed_actions)
   const noteRequired = dialogAction !== null && dialogAction !== "CLOSE"
   const canSubmitDialog =
     dialogAction === "EDIT"
@@ -346,12 +432,15 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
   const openEdit = () => {
     setEditTitle(detail.title)
     setEditDescription(detail.description)
+    setActionError(null)
+    setActionNotice(null)
     setDialogAction("EDIT")
   }
 
   const closeDialog = () => {
     setDialogAction(null)
     setDialogNote("")
+    setActionError(null)
   }
 
   return (
@@ -390,9 +479,27 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
       {conflict ? (
         <ConflictBanner
           message={conflict.message}
+          code={conflict.code}
           refreshed={conflict.refreshed}
+          before={conflict.before}
+          after={conflict.after}
           onDismiss={() => setConflict(null)}
         />
+      ) : null}
+      {actionError && dialogAction === null ? (
+        <ActionError
+          message={actionError.message}
+          requestId={actionError.requestId}
+          onDismiss={() => setActionError(null)}
+        />
+      ) : null}
+      {actionNotice ? (
+        <p
+          className="rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-4 py-2.5 text-sm"
+          role="status"
+        >
+          {actionNotice}
+        </p>
       ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -466,11 +573,21 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
                   <textarea
                     id="new-comment"
                     aria-label="新评论"
+                    aria-invalid={Boolean(actionError?.fields.body)}
+                    aria-describedby={
+                      actionError?.fields.body
+                        ? "comment-body-error"
+                        : undefined
+                    }
                     className="min-h-24 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     maxLength={5000}
                     value={commentBody}
                     onChange={(event) => setCommentBody(event.target.value)}
                     placeholder="补充处理信息或向提交人确认细节…"
+                  />
+                  <FieldError
+                    id="comment-body-error"
+                    message={actionError?.fields.body}
                   />
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs text-muted-foreground">
@@ -582,7 +699,12 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
 
               <div className="flex flex-col gap-2">
                 {action("DISPATCH") ? (
-                  <Button asChild>
+                  <Button
+                    asChild
+                    variant={
+                      primaryAction === "DISPATCH" ? "default" : "outline"
+                    }
+                  >
                     <Link to="/dispatch" search={{ ticket: detail.id }}>
                       <Bot />
                       进入派发工作台
@@ -591,6 +713,7 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
                 ) : null}
                 {action("ACCEPT") ? (
                   <Button
+                    variant={primaryAction === "ACCEPT" ? "default" : "outline"}
                     disabled={accept.isPending}
                     onClick={() => accept.mutate(detail)}
                   >
@@ -600,25 +723,49 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
                 {action("REJECT") ? (
                   <Button
                     variant="outline"
-                    onClick={() => setDialogAction("REJECT")}
+                    onClick={() => {
+                      setActionError(null)
+                      setActionNotice(null)
+                      setDialogAction("REJECT")
+                    }}
                   >
                     拒绝派发
                   </Button>
                 ) : null}
                 {action("COMPLETE") ? (
-                  <Button onClick={() => setDialogAction("COMPLETE")}>
+                  <Button
+                    variant={
+                      primaryAction === "COMPLETE" ? "default" : "outline"
+                    }
+                    onClick={() => {
+                      setActionError(null)
+                      setActionNotice(null)
+                      setDialogAction("COMPLETE")
+                    }}
+                  >
                     完成处理
                   </Button>
                 ) : null}
                 {action("CLOSE") ? (
-                  <Button onClick={() => setDialogAction("CLOSE")}>
+                  <Button
+                    variant={primaryAction === "CLOSE" ? "default" : "outline"}
+                    onClick={() => {
+                      setActionError(null)
+                      setActionNotice(null)
+                      setDialogAction("CLOSE")
+                    }}
+                  >
                     关闭工单
                   </Button>
                 ) : null}
                 {action("REOPEN") ? (
                   <Button
-                    variant="outline"
-                    onClick={() => setDialogAction("REOPEN")}
+                    variant={primaryAction === "REOPEN" ? "default" : "outline"}
+                    onClick={() => {
+                      setActionError(null)
+                      setActionNotice(null)
+                      setDialogAction("REOPEN")
+                    }}
                   >
                     重新打开
                   </Button>
@@ -703,6 +850,18 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
             </DialogDescription>
           </DialogHeader>
 
+          {dialogAction && actionError ? (
+            <FormErrorSummary
+              errors={actionError.fields}
+              fieldIdPrefix="edit-ticket"
+              fieldIds={{
+                reason: "ticket-action-note",
+                completion_note: "ticket-action-note",
+                resolution_note: "ticket-action-note",
+              }}
+            />
+          ) : null}
+
           {dialogAction === "EDIT" ? (
             <div className="grid gap-4">
               <label
@@ -712,9 +871,19 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
                 标题
                 <Input
                   id="edit-ticket-title"
+                  aria-invalid={Boolean(actionError?.fields.title)}
+                  aria-describedby={
+                    actionError?.fields.title
+                      ? "edit-ticket-title-error"
+                      : undefined
+                  }
                   value={editTitle}
                   maxLength={200}
                   onChange={(event) => setEditTitle(event.target.value)}
+                />
+                <FieldError
+                  id="edit-ticket-title-error"
+                  message={actionError?.fields.title}
                 />
               </label>
               <label
@@ -724,25 +893,58 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
                 描述
                 <textarea
                   id="edit-ticket-description"
+                  aria-invalid={Boolean(actionError?.fields.description)}
+                  aria-describedby={
+                    actionError?.fields.description
+                      ? "edit-ticket-description-error"
+                      : undefined
+                  }
                   className="min-h-36 rounded-lg border bg-background px-3 py-2 text-sm font-normal outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   value={editDescription}
                   maxLength={10000}
                   onChange={(event) => setEditDescription(event.target.value)}
                 />
+                <FieldError
+                  id="edit-ticket-description-error"
+                  message={actionError?.fields.description}
+                />
               </label>
             </div>
           ) : dialogAction ? (
-            <textarea
-              aria-label="操作说明"
-              className="min-h-28 rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              value={dialogNote}
-              onChange={(event) => setDialogNote(event.target.value)}
-              placeholder={
-                dialogAction === "CLOSE"
-                  ? "可选：填写解决说明"
-                  : actionCopy[dialogAction].placeholder
-              }
-            />
+            <>
+              <textarea
+                id="ticket-action-note"
+                aria-label="操作说明"
+                aria-invalid={Boolean(
+                  actionError?.fields.reason ||
+                    actionError?.fields.completion_note ||
+                    actionError?.fields.resolution_note,
+                )}
+                aria-describedby={
+                  actionError?.fields.reason ||
+                  actionError?.fields.completion_note ||
+                  actionError?.fields.resolution_note
+                    ? "ticket-action-note-error"
+                    : undefined
+                }
+                className="min-h-28 rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                value={dialogNote}
+                onChange={(event) => setDialogNote(event.target.value)}
+                placeholder={
+                  dialogAction === "CLOSE"
+                    ? "可选：填写解决说明"
+                    : actionCopy[dialogAction].placeholder
+                }
+              />
+              <FieldError
+                id="ticket-action-note-error"
+                message={
+                  actionError?.fields.reason ??
+                  actionError?.fields.completion_note ??
+                  actionError?.fields.resolution_note
+                }
+              />
+            </>
           ) : null}
 
           <DialogFooter>
@@ -762,7 +964,13 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
                 })
               }}
             >
-              {actionMutation.isPending ? "正在提交…" : "确认"}
+              {actionMutation.isPending
+                ? "正在提交…"
+                : dialogAction === "EDIT"
+                  ? "保存修改"
+                  : dialogAction
+                    ? actionCopy[dialogAction].submit
+                    : "确认"}
             </Button>
           </DialogFooter>
         </DialogContent>

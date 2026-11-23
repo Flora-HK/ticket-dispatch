@@ -22,6 +22,20 @@ export function getTicketActionLabel(action: TicketAction): string {
   return ticketActionLabels[action]
 }
 
+const primaryActionPriority: TicketAction[] = [
+  "DISPATCH",
+  "ACCEPT",
+  "COMPLETE",
+  "CLOSE",
+  "REOPEN",
+]
+
+export function getPrimaryTicketAction(
+  allowedActions: readonly TicketAction[],
+): TicketAction | undefined {
+  return primaryActionPriority.find((action) => allowedActions.includes(action))
+}
+
 export function createSubmissionKey(): string {
   return crypto.randomUUID()
 }

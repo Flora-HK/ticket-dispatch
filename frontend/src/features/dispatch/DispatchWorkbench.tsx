@@ -21,16 +21,23 @@ import {
   type TicketDetailPublic,
   TicketsService,
 } from "@/client"
+import { ActionError, FieldError } from "@/components/shared/ActionError"
 import {
   EmptyState,
   ErrorState,
   InlineLoading,
   LoadingRows,
 } from "@/components/shared/AsyncState"
-import { ConflictBanner } from "@/components/shared/ConflictBanner"
+import {
+  ConflictBanner,
+  type ConflictSnapshot,
+} from "@/components/shared/ConflictBanner"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
-import { formatDateTime } from "@/components/Tickets/ticket-ui"
+import {
+  formatDateTime,
+  ticketStatusLabels,
+} from "@/components/Tickets/ticket-ui"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -45,7 +52,12 @@ import {
   hasTicketAction,
 } from "@/features/actions/ticket-actions"
 import { cn } from "@/lib/utils"
-import { extractErrorMessage, isConflictError } from "@/utils"
+import {
+  extractErrorMessage,
+  getApiErrorFields,
+  getApiErrorMeta,
+  isConflictError,
+} from "@/utils"
 
 import {
   buildCandidateComparisons,
@@ -55,6 +67,19 @@ import {
 
 type DispatchMode = "MANUAL" | "AUTO"
 type MobilePane = "queue" | "detail" | "dispatch"
+type ConflictState = {
+  message: string
+  code?: string
+  requestId?: string
+  refreshed: boolean
+  before?: ConflictSnapshot
+  after?: ConflictSnapshot
+}
+type ActionErrorState = {
+  message: string
+  requestId?: string
+  fields: Record<string, string>
+}
 
 export function DispatchWorkbench({
   initialTicketId,
@@ -73,10 +98,8 @@ export function DispatchWorkbench({
     initialTicketId ? "detail" : "queue",
   )
   const [explanation, setExplanation] = useState<DispatchResponse | null>(null)
-  const [conflict, setConflict] = useState<{
-    message: string
-    refreshed: boolean
-  } | null>(null)
+  const [conflict, setConflict] = useState<ConflictState | null>(null)
+  const [actionError, setActionError] = useState<ActionErrorState | null>(null)
 
   const queue = useInfiniteQuery({
     queryKey: ["dispatch-queue"],
@@ -123,7 +146,7 @@ export function DispatchWorkbench({
     enabled: Boolean(ticket.data && hasTicketAction(ticket.data, "DISPATCH")),
   })
 
-  const refreshAll = async () => {
+  const refreshAll = async (): Promise<TicketDetailPublic | undefined> => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["dispatch-queue"] }),
       queryClient.invalidateQueries({ queryKey: ["tickets"] }),
@@ -133,6 +156,10 @@ export function DispatchWorkbench({
         queryKey: ["dispatch-candidates", selectedId],
       }),
     ])
+    return selectedId
+      ? (await TicketsService.readTicket({ path: { ticket_id: selectedId } }))
+          .data
+      : undefined
   }
 
   const dispatch = useMutation({
@@ -178,20 +205,49 @@ export function DispatchWorkbench({
     onSuccess: async (response) => {
       setExplanation(response)
       setConflict(null)
+      setActionError(null)
       setReason("")
       setSelectedHandlerId("")
       await refreshAll()
     },
-    onError: async (error) => {
+    onError: async (error, variables) => {
+      const meta = getApiErrorMeta(error)
+      const before = {
+        version: variables.detail.version,
+        statusLabel: ticketStatusLabels[variables.detail.status],
+      }
       if (isConflictError(error)) {
-        setConflict({ message: extractErrorMessage(error), refreshed: false })
-        await refreshAll()
+        setActionError(null)
+        setConflict({
+          message: extractErrorMessage(error),
+          code: meta.code,
+          requestId: meta.requestId,
+          refreshed: false,
+          before,
+        })
+        const latest = await refreshAll()
         setConflict((current) =>
-          current ? { ...current, refreshed: true } : null,
+          current
+            ? {
+                ...current,
+                refreshed: true,
+                after: latest
+                  ? {
+                      version: latest.version,
+                      statusLabel: ticketStatusLabels[latest.status],
+                    }
+                  : undefined,
+              }
+            : null,
         )
         return
       }
-      setConflict({ message: extractErrorMessage(error), refreshed: true })
+      setConflict(null)
+      setActionError({
+        message: extractErrorMessage(error),
+        requestId: meta.requestId,
+        fields: getApiErrorFields(error),
+      })
     },
   })
 
@@ -226,6 +282,7 @@ export function DispatchWorkbench({
     setReason("")
     setExplanation(null)
     setConflict(null)
+    setActionError(null)
     setMobilePane("detail")
     void navigate({
       to: "/dispatch",
@@ -260,8 +317,18 @@ export function DispatchWorkbench({
       {conflict ? (
         <ConflictBanner
           message={conflict.message}
+          code={conflict.code}
           refreshed={conflict.refreshed}
+          before={conflict.before}
+          after={conflict.after}
           onDismiss={() => setConflict(null)}
+        />
+      ) : null}
+      {actionError ? (
+        <ActionError
+          message={actionError.message}
+          requestId={actionError.requestId}
+          onDismiss={() => setActionError(null)}
         />
       ) : null}
 
@@ -608,9 +675,19 @@ export function DispatchWorkbench({
                 </label>
                 <Input
                   id="dispatch-reason"
+                  aria-invalid={Boolean(actionError?.fields.reason)}
+                  aria-describedby={
+                    actionError?.fields.reason
+                      ? "dispatch-reason-error"
+                      : undefined
+                  }
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
                   placeholder="说明为什么更换当前处理人"
+                />
+                <FieldError
+                  id="dispatch-reason-error"
+                  message={actionError?.fields.reason}
                 />
               </div>
             ) : null}
